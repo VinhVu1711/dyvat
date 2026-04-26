@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shopping cart icon stylized for Dyvat -->
+    <path
+        android:fillColor="#1ED760"
+        android:pathData="M54,18C36.33,18 22,32.33 22,50C22,67.67 36.33,82 54,82C71.67,82 86,67.67 86,50C86,32.33 71.67,18 54,18ZM54,76C39.64,76 28,64.36 28,50C28,35.64 39.64,24 54,24C68.36,24 80,35.64 80,50C80,64.36 68.36,76 54,76Z"/>
+    <path
+        android:fillColor="#1ED760"
+        android:pathData="M48,42L40,58L68,58L60,42Z"/>
+    <path
+        android:fillColor="#1ED760"
+        android:pathData="M54,36C50.69,36 48,38.69 48,42L60,42C60,38.69 57.31,36 54,36Z"/>
+    <!-- Cart handle -->
+    <path
+        android:fillColor="#1ED760"
+        android:pathData="M38,34L42,34L44,44L28,44L32,34Z"
+        android:strokeWidth="2"
+        android:strokeColor="#1ED760"/>
+</vector>
