@@ -50,6 +50,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
@@ -121,10 +122,12 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
+                        val rawNonce = generateNonce()
                         performGoogleSignIn(
                             context = context,
+                            rawNonce = rawNonce,
                             onIdTokenReceived = { idToken ->
-                                viewModel.signInWithGoogle(idToken)
+                                viewModel.signInWithGoogle(idToken, rawNonce)
                             },
                             onError = { errorMessage ->
                                 Log.e("LoginScreen", "Google Sign-In error: $errorMessage")
@@ -170,77 +173,133 @@ fun LoginScreen(
 
 private fun performGoogleSignIn(
     context: android.content.Context,
+    rawNonce: String,
     onIdTokenReceived: (String) -> Unit,
     onError: (String) -> Unit
 ) {
-    val credentialManager = CredentialManager.create(context)
+    val tag = "GoogleSignIn"
+    val clientId = context.getString(R.string.google_oauth_client_id)
 
-    val rawNonce = generateNonce()
+    Log.d(tag, "=== Google Sign-In Flow Started ===")
+    Log.d(tag, "Using Client ID: $clientId")
+    Log.d(tag, "Raw nonce: $rawNonce")
+
+    val credentialManager = try {
+        CredentialManager.create(context)
+    } catch (e: Exception) {
+        Log.e(tag, "CredentialManager.create() failed: ${e.message}")
+        onError("Khong the khoi tao CredentialManager: ${e.message}")
+        return
+    }
+    Log.d(tag, "CredentialManager created successfully")
+
+    val hashedNonce = hashNonce(rawNonce)
+    Log.d(tag, "Hashed nonce: $hashedNonce")
+
     val googleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(true)
-        .setServerClientId(context.getString(R.string.google_oauth_client_id))
-        .setNonce(rawNonce)
+        .setServerClientId(clientId)
+        .setNonce(hashedNonce)
         .build()
 
     val request = GetCredentialRequest.Builder()
         .addCredentialOption(googleIdOption)
         .build()
 
+    Log.d(tag, "GetCredentialRequest built. Requesting credential...")
+
     CoroutineScope(Dispatchers.Main.immediate + SupervisorJob()).launch {
         try {
+            Log.d(tag, "Calling credentialManager.getCredential()...")
             val result = credentialManager.getCredential(
                 request = request,
                 context = context
             )
+            Log.d(tag, "getCredential succeeded. Credential type: ${result.credential.type}")
             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
-            onIdTokenReceived(googleIdTokenCredential.idToken)
+            val idToken = googleIdTokenCredential.idToken
+            Log.d(tag, "ID Token obtained. Length: ${idToken.length}")
+            onIdTokenReceived(idToken)
         } catch (e: GetCredentialException) {
+            Log.e(tag, "GetCredentialException: ${e::class.simpleName}")
+            Log.e(tag, "Exception message: ${e.message}")
+            Log.e(tag, "Exception type: ${e.type}")
+
             when (e) {
                 is NoCredentialException -> {
+                    Log.w(tag, "NoCredentialException caught. Trying fallback (unfiltered accounts)...")
                     val fallbackOption = GetGoogleIdOption.Builder()
                         .setFilterByAuthorizedAccounts(false)
-                        .setServerClientId(context.getString(R.string.google_oauth_client_id))
-                        .setNonce(rawNonce)
+                        .setServerClientId(clientId)
+                        .setNonce(hashedNonce)
                         .build()
                     val fallbackRequest = GetCredentialRequest.Builder()
                         .addCredentialOption(fallbackOption)
                         .build()
                     try {
+                        Log.d(tag, "Calling credentialManager.getCredential() [fallback]...")
                         val fallbackResult = credentialManager.getCredential(
                             request = fallbackRequest,
                             context = context
                         )
+                        Log.d(tag, "Fallback getCredential succeeded.")
                         val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(fallbackResult.credential.data)
-                        onIdTokenReceived(googleIdTokenCredential.idToken)
+                        val idToken = googleIdTokenCredential.idToken
+                        Log.d(tag, "Fallback ID Token obtained.")
+                        onIdTokenReceived(idToken)
                     } catch (e2: GetCredentialException) {
+                        Log.e(tag, "Fallback GetCredentialException: ${e2::class.simpleName}")
+                        Log.e(tag, "Fallback exception message: ${e2.message}")
+                        Log.e(tag, "Fallback exception type: ${e2.type}")
                         onError(getErrorMessage(e2))
                     }
                 }
                 is GetCredentialCancellationException -> {
+                    Log.w(tag, "Sign-in was cancelled by user")
                     onError("Dang nhap bi huy")
                 }
-                else -> onError(getErrorMessage(e))
+                else -> {
+                    Log.e(tag, "Unhandled GetCredentialException type")
+                    onError(getErrorMessage(e))
+                }
             }
         } catch (e: GoogleIdTokenParsingException) {
+            Log.e(tag, "GoogleIdTokenParsingException: ${e.message}")
             onError("Token khong hop le")
         } catch (e: Exception) {
+            Log.e(tag, "Unexpected exception: ${e::class.simpleName}: ${e.message}")
             onError(e.message ?: "Loi khong xac dinh")
         }
     }
 }
 
 private fun generateNonce(): String {
-    val bytes = ByteArray(16)
-    SecureRandom().nextBytes(bytes)
-    return Base64.getEncoder().withoutPadding().encodeToString(bytes)
+    return java.util.UUID.randomUUID().toString()
+}
+
+private fun hashNonce(rawNonce: String): String {
+    val bytes = rawNonce.toByteArray()
+    val md = MessageDigest.getInstance("SHA-256")
+    val digest = md.digest(bytes)
+    return digest.fold("") { str, it -> str + "%02x".format(it) }
 }
 
 private fun getErrorMessage(e: GetCredentialException): String {
+    val tag = "GoogleSignIn"
+    val typeExtra = try {
+        // e.type is available in some versions, fall back to message inspection
+        e.type?.let { "type=$it" }
+    } catch (_: Exception) { null }
+    Log.e(tag, "Error details — message: '${e.message}', $typeExtra")
     return when {
         e.message?.contains("DEVELOPER_ERROR", ignoreCase = true) == true ->
             "Loi cau hinh Google. Vui long kiem tra SHA-1 va OAuth Client ID."
         e.message?.contains("network", ignoreCase = true) == true ->
             "Loi mang. Vui long kiem tra ket noi internet."
+        e.message?.contains("SIGN_IN_FAILED", ignoreCase = true) == true ->
+            "Dang nhap Google that bai. Kiem tra SHA-1 va Client ID."
+        e.message?.contains("invalid_client", ignoreCase = true) == true ->
+            "OAuth Client ID khong hop le."
         else -> e.message ?: "Loi dang nhap Google"
     }
 }

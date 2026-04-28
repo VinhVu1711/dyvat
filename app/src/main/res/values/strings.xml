@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Dyvat</string>
-    <string name="google_oauth_client_id">YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+    <!-- OAuth Client ID loai Web application - dung lam serverClientId trong GetGoogleIdOption -->
+    <string name="google_oauth_client_id">826909696257-3v85utnfguab6bq2hu3fdjt44o02n503.apps.googleusercontent.com</string>
+    <!-- OAuth Client ID loai Android - chi dung de verify SHA-1, KHONG dung trong code -->
+    <string name="google_oauth_android_client_id">826909696257-e0vsfsvtuccu7ddsba8lgkd1247r84a3.apps.googleusercontent.com</string>
 </resources>

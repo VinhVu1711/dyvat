@@ -53,9 +53,9 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun signInWithGoogle(idToken: String) {
+    fun signInWithGoogle(idToken: String, rawNonce: String) {
         viewModelScope.launch {
-            authRepository.signInWithGoogle(idToken).collect { result ->
+            authRepository.signInWithGoogle(idToken, rawNonce).collect { result ->
                 _uiState.value = when (result) {
                     is Result.Loading -> _uiState.value.copy(isLoading = true, errorMessage = null)
                     is Result.Success -> _uiState.value.copy(
