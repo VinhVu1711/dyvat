@@ -19,6 +19,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.vinh.dyvat.ui.navigation.Screen
 import com.vinh.dyvat.ui.navigation.DyvatNavHost
 import com.vinh.dyvat.ui.navigation.bottomNavItems
 import com.vinh.dyvat.ui.theme.DarkSurface
@@ -55,7 +56,7 @@ fun DyvatApp() {
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
-                    containerColor = DarkSurface
+                    containerColor = DarkSurface,
                 ) {
                     bottomNavItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true

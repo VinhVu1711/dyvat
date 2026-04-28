@@ -5,12 +5,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
 @Serializable
-data class UnitModel(
+data class Supplier(
     val id: String = "",
     @Transient
     @SerialName("owner_id")
     val ownerId: String = "",
     val name: String = "",
+    val phone: String? = null,
     @SerialName("is_active")
     val isActive: Boolean = true,
     @SerialName("created_at")

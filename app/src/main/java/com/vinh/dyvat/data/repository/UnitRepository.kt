@@ -2,6 +2,7 @@ package com.vinh.dyvat.data.repository
 
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.UnitModel
+import com.vinh.dyvat.data.remote.SupabaseTables
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
@@ -13,57 +14,63 @@ import javax.inject.Singleton
 class UnitRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
 ) {
-
-    fun getAllUnits(): Flow<Result<List<UnitModel>>> = flow {
+    fun getAll(activeOnly: Boolean = true): Flow<Result<List<UnitModel>>> = flow {
         emit(Result.Loading)
         try {
-            val response = supabaseClient.postgrest["units"]
+            val all = supabaseClient.postgrest[SupabaseTables.UNITS]
                 .select()
                 .decodeList<UnitModel>()
-            emit(Result.Success(response))
+            val filtered = if (activeOnly) all.filter { it.isActive } else all
+            emit(Result.Success(filtered))
         } catch (e: Exception) {
-            emit(Result.Error(e.message ?: "Failed to fetch units", e))
+            emit(Result.Error(e.message ?: "Lỗi khi tải đơn vị tính", e))
         }
     }
 
-    suspend fun insertUnit(name: String): Result<UnitModel> {
+    suspend fun getById(id: String): Result<UnitModel> {
+        return try {
+            val response = supabaseClient.postgrest[SupabaseTables.UNITS]
+                .select { filter { eq("id", id) } }
+                .decodeSingle<UnitModel>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Lỗi khi tải đơn vị tính", e)
+        }
+    }
+
+    suspend fun insert(name: String): Result<UnitModel> {
         return try {
             val unit = UnitModel(name = name)
-            val response = supabaseClient.postgrest["units"]
+            val response = supabaseClient.postgrest[SupabaseTables.UNITS]
                 .insert(unit)
                 .decodeSingle<UnitModel>()
             Result.Success(response)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to insert unit", e)
+            Result.Error(e.message ?: "Lỗi khi thêm đơn vị tính", e)
         }
     }
 
-    suspend fun updateUnit(id: String, name: String): Result<UnitModel> {
+    suspend fun update(id: String, name: String): Result<UnitModel> {
         return try {
-            val response = supabaseClient.postgrest["units"]
+            val response = supabaseClient.postgrest[SupabaseTables.UNITS]
                 .update({ set("name", name) }) {
                     select()
-                    filter {
-                        eq("id", id)
-                    } }
+                    filter { eq("id", id) }
+                }
                 .decodeSingle<UnitModel>()
             Result.Success(response)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to update unit", e)
+            Result.Error(e.message ?: "Lỗi khi cập nhật đơn vị tính", e)
         }
     }
 
-    suspend fun deleteUnit(id: String): Result<UnitModel> {
+    suspend fun delete(id: String): Result<Unit> {
         return try {
-            val response = supabaseClient.postgrest["units"]
-                .delete { select()
-                    filter {
-                        eq("id", id)
-                    } }
-                .decodeSingle<UnitModel>()
-            Result.Success(response)
+            supabaseClient.postgrest[SupabaseTables.UNITS]
+                .delete { filter { eq("id", id) } }
+            Result.Success(Unit)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to delete unit", e)
+            Result.Error(e.message ?: "Lỗi khi xóa đơn vị tính", e)
         }
     }
 }

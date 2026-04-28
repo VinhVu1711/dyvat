@@ -34,7 +34,7 @@ class UnitsViewModel @Inject constructor(
 
     fun loadUnits() {
         viewModelScope.launch {
-            repository.getAllUnits().collect { result ->
+            repository.getAll().collect { result ->
                 _uiState.value = when (result) {
                     is Result.Loading -> _uiState.value.copy(isLoading = true, error = null)
                     is Result.Success -> _uiState.value.copy(
@@ -66,7 +66,7 @@ class UnitsViewModel @Inject constructor(
     fun addUnit(name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.insertUnit(name)
+            val result = repository.insert(name)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -86,7 +86,7 @@ class UnitsViewModel @Inject constructor(
     fun updateUnit(id: String, name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.updateUnit(id, name)
+            val result = repository.update(id, name)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -106,7 +106,7 @@ class UnitsViewModel @Inject constructor(
     fun deleteUnit(id: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.deleteUnit(id)
+            val result = repository.delete(id)
             when (result) {
                 is Result.Success -> loadUnits()
                 is Result.Error -> {

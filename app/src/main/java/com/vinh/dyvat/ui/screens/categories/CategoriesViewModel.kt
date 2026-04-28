@@ -34,7 +34,7 @@ class CategoriesViewModel @Inject constructor(
 
     fun loadCategories() {
         viewModelScope.launch {
-            repository.getAllCategories().collect { result ->
+            repository.getAll().collect { result ->
                 _uiState.value = when (result) {
                     is Result.Loading -> _uiState.value.copy(isLoading = true, error = null)
                     is Result.Success -> _uiState.value.copy(
@@ -66,7 +66,7 @@ class CategoriesViewModel @Inject constructor(
     fun addCategory(name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.insertCategory(name)
+            val result = repository.insert(name)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -86,7 +86,7 @@ class CategoriesViewModel @Inject constructor(
     fun updateCategory(id: String, name: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.updateCategory(id, name)
+            val result = repository.update(id, name)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -106,7 +106,7 @@ class CategoriesViewModel @Inject constructor(
     fun deleteCategory(id: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.deleteCategory(id)
+            val result = repository.delete(id)
             when (result) {
                 is Result.Success -> loadCategories()
                 is Result.Error -> {

@@ -2,8 +2,9 @@ package com.vinh.dyvat.data.repository
 
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.Supplier
+import com.vinh.dyvat.data.remote.SupabaseTables
 import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -13,72 +14,66 @@ import javax.inject.Singleton
 class SupplierRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
 ) {
-
-    fun getAllSuppliers(): Flow<Result<List<Supplier>>> = flow {
+    fun getAll(activeOnly: Boolean = true): Flow<Result<List<Supplier>>> = flow {
         emit(Result.Loading)
         try {
-            val response = supabaseClient
-                .from("suppliers")
+            val all = supabaseClient.postgrest[SupabaseTables.SUPPLIERS]
                 .select()
                 .decodeList<Supplier>()
-
-            emit(Result.Success(response))
+            val filtered = if (activeOnly) all.filter { it.isActive } else all
+            emit(Result.Success(filtered))
         } catch (e: Exception) {
-            emit(Result.Error(e.message ?: "Failed to fetch suppliers", e))
+            emit(Result.Error(e.message ?: "Lỗi khi tải nhà cung cấp", e))
         }
     }
 
-    suspend fun insertSupplier(name: String, phone: String?): Result<Supplier> {
+    suspend fun getById(id: String): Result<Supplier> {
         return try {
-            val supplier = Supplier(name = name, phone = phone)
-
-            val response = supabaseClient
-                .from("suppliers")
-                .insert(supplier) {
-                    select()
-                }
+            val response = supabaseClient.postgrest[SupabaseTables.SUPPLIERS]
+                .select { filter { eq("id", id) } }
                 .decodeSingle<Supplier>()
-
             Result.Success(response)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to insert supplier", e)
+            Result.Error(e.message ?: "Lỗi khi tải nhà cung cấp", e)
         }
     }
 
-    suspend fun updateSupplier(id: String, name: String, phone: String?): Result<Supplier> {
+    suspend fun insert(name: String, phone: String?): Result<Supplier> {
         return try {
-            val response = supabaseClient
-                .from("suppliers")
+            val supplier = Supplier(name = name, phone = phone)
+            val response = supabaseClient.postgrest[SupabaseTables.SUPPLIERS]
+                .insert(supplier)
+                .decodeSingle<Supplier>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Lỗi khi thêm nhà cung cấp", e)
+        }
+    }
+
+    suspend fun update(id: String, name: String, phone: String?): Result<Supplier> {
+        return try {
+            val response = supabaseClient.postgrest[SupabaseTables.SUPPLIERS]
                 .update({
                     set("name", name)
                     set("phone", phone)
                 }) {
                     select()
-                    filter {
-                        eq("id", id)
-                    }
+                    filter { eq("id", id) }
                 }
                 .decodeSingle<Supplier>()
-
             Result.Success(response)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to update supplier", e)
+            Result.Error(e.message ?: "Lỗi khi cập nhật nhà cung cấp", e)
         }
     }
 
-    suspend fun deleteSupplier(id: String): Result<Unit> {
+    suspend fun delete(id: String): Result<Unit> {
         return try {
-            supabaseClient
-                .from("suppliers")
-                .delete {
-                    filter {
-                        eq("id", id)
-                    }
-                }
-
+            supabaseClient.postgrest[SupabaseTables.SUPPLIERS]
+                .delete { filter { eq("id", id) } }
             Result.Success(Unit)
         } catch (e: Exception) {
-            Result.Error(e.message ?: "Failed to delete supplier", e)
+            Result.Error(e.message ?: "Lỗi khi xóa nhà cung cấp", e)
         }
     }
 }

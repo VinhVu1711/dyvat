@@ -1,15 +1,24 @@
-package com.vinh.dyvat.data
+package com.vinh.dyvat.di
 
 import com.vinh.dyvat.BuildConfig
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.postgrest.Postgrest
+import javax.inject.Singleton
 
-object SupabaseClientProvider {
+@Module
+@InstallIn(SingletonComponent::class)
+object SupabaseModule {
 
-    val supabaseClient: SupabaseClient by lazy {
-        createSupabaseClient(
+    @Provides
+    @Singleton
+    fun provideSupabaseClient(): SupabaseClient {
+        return createSupabaseClient(
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         ) {

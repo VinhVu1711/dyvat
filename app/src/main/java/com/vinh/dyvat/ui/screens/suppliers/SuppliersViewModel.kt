@@ -34,7 +34,7 @@ class SuppliersViewModel @Inject constructor(
 
     fun loadSuppliers() {
         viewModelScope.launch {
-            repository.getAllSuppliers().collect { result ->
+            repository.getAll().collect { result ->
                 _uiState.value = when (result) {
                     is Result.Loading -> _uiState.value.copy(isLoading = true, error = null)
                     is Result.Success -> _uiState.value.copy(
@@ -66,7 +66,7 @@ class SuppliersViewModel @Inject constructor(
     fun addSupplier(name: String, phone: String?) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.insertSupplier(name, phone)
+            val result = repository.insert(name, phone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -86,7 +86,7 @@ class SuppliersViewModel @Inject constructor(
     fun updateSupplier(id: String, name: String, phone: String?) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.updateSupplier(id, name, phone)
+            val result = repository.update(id, name, phone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -106,7 +106,7 @@ class SuppliersViewModel @Inject constructor(
     fun deleteSupplier(id: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.deleteSupplier(id)
+            val result = repository.delete(id)
             when (result) {
                 is Result.Success -> loadSuppliers()
                 is Result.Error -> {
