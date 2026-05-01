@@ -1,5 +1,6 @@
 package com.vinh.dyvat.data.repository
 
+import android.util.Log
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.UnitModel
 import com.vinh.dyvat.data.remote.SupabaseTables
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val TAG = "UnitRepository"
+
 @Singleton
 class UnitRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
@@ -17,12 +20,16 @@ class UnitRepository @Inject constructor(
     fun getAll(activeOnly: Boolean = true): Flow<Result<List<UnitModel>>> = flow {
         emit(Result.Loading)
         try {
+            Log.d(TAG, "getAll: fetching units, activeOnly=$activeOnly")
             val all = supabaseClient.postgrest[SupabaseTables.UNITS]
                 .select()
                 .decodeList<UnitModel>()
+            Log.d(TAG, "getAll: raw decoded ${all.size} units, all=$all")
             val filtered = if (activeOnly) all.filter { it.isActive } else all
+            Log.d(TAG, "getAll: fetched ${all.size} units, filtered to ${filtered.size}, data=$filtered")
             emit(Result.Success(filtered))
         } catch (e: Exception) {
+            Log.e(TAG, "getAll: error - ${e.message}", e)
             emit(Result.Error(e.message ?: "Lỗi khi tải đơn vị tính", e))
         }
     }

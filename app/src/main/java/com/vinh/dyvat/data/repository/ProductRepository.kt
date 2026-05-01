@@ -255,4 +255,14 @@ class ProductRepository @Inject constructor(
             Result.Error(e.message ?: "Lỗi khi cập nhật trạng thái sản phẩm", e)
         }
     }
+
+    suspend fun delete(id: String): Result<Unit> {
+        return try {
+            supabaseClient.postgrest[SupabaseTables.PRODUCTS]
+                .delete { filter { eq("id", id) } }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Lỗi khi xóa sản phẩm", e)
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.vinh.dyvat.ui.screens.products
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vinh.dyvat.data.model.Category
@@ -17,9 +18,20 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
+
+private const val TAG = "ProductsViewModel"
+
+private data class ProductLookups(
+    val categories: List<Category>,
+    val units: List<UnitModel>,
+    val suppliers: List<Supplier>
+)
 
 data class ProductsUiState(
     val products: List<ProductWithDetails> = emptyList(),
@@ -29,6 +41,7 @@ data class ProductsUiState(
     val searchQuery: String = "",
     val selectedCategoryId: String? = null,
     val selectedSupplierId: String? = null,
+    val sortOption: SortOption = SortOption.NAME_ASC,
     val showInactive: Boolean = false,
     val showDeleteConfirm: Boolean = false,
     val productToDelete: ProductWithDetails? = null,
@@ -36,6 +49,17 @@ data class ProductsUiState(
     val units: List<UnitModel> = emptyList(),
     val suppliers: List<Supplier> = emptyList()
 )
+
+enum class SortOption(val label: String) {
+    NAME_ASC("Tên sản phẩm A-Z"),
+    NAME_DESC("Tên sản phẩm Z-A"),
+    CODE_ASC("Mã sản phẩm A-Z"),
+    CODE_DESC("Mã sản phẩm Z-A"),
+    PRICE_ASC("Giá tăng dần"),
+    PRICE_DESC("Giá giảm dần"),
+    NEWEST("Mới nhất"),
+    OLDEST("Cũ nhất")
+}
 
 data class ProductDetailUiState(
     val product: ProductWithDetails? = null,
@@ -85,6 +109,8 @@ class ProductsViewModel @Inject constructor(
     private val _formUiState = MutableStateFlow(ProductFormUiState())
     val formUiState: StateFlow<ProductFormUiState> = _formUiState.asStateFlow()
 
+    private val lookupMutex = Mutex()
+
     init {
         loadProducts()
         loadLookups()
@@ -92,18 +118,49 @@ class ProductsViewModel @Inject constructor(
 
     private fun loadLookups() {
         viewModelScope.launch {
-            try {
-                val categories = categoryRepository.getAll().first()
-                val units = unitRepository.getAll().first()
-                val suppliers = supplierRepository.getAll().first()
+            lookupMutex.withLock {
+                try {
+                    val lookups = fetchLookups()
 
-                _uiState.value = _uiState.value.copy(
-                    categories = (categories as? Result.Success)?.data ?: emptyList(),
-                    units = (units as? Result.Success)?.data ?: emptyList(),
-                    suppliers = (suppliers as? Result.Success)?.data ?: emptyList()
-                )
-            } catch (_: Exception) { }
+                    _uiState.value = _uiState.value.copy(
+                        categories = lookups.categories,
+                        units = lookups.units,
+                        suppliers = lookups.suppliers
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "loadLookups: failed - ${e.message}", e)
+                }
+            }
         }
+    }
+
+    private suspend fun fetchLookups(): ProductLookups {
+        Log.d(TAG, "fetchLookups: fetching categories, units, suppliers")
+        val categoriesResult = categoryRepository.getAll().awaitResult()
+        val unitsResult = unitRepository.getAll().awaitResult()
+        val suppliersResult = supplierRepository.getAll().awaitResult()
+
+        val categoriesData = (categoriesResult as? Result.Success)?.data ?: emptyList()
+        val unitsData = (unitsResult as? Result.Success)?.data ?: emptyList()
+        val suppliersData = (suppliersResult as? Result.Success)?.data ?: emptyList()
+
+        Log.d(TAG, "fetchLookups: loaded - categories=${categoriesData.size}, units=${unitsData.size}, suppliers=${suppliersData.size}")
+
+        return ProductLookups(
+            categories = categoriesData,
+            units = unitsData,
+            suppliers = suppliersData
+        )
+    }
+
+    private suspend fun <T> Flow<Result<T>>.awaitResult(): Result<T> {
+        var latest: Result<T> = Result.Loading
+        collect { result ->
+            if (result !is Result.Loading) {
+                latest = result
+            }
+        }
+        return latest
     }
 
     fun loadProducts() {
@@ -160,13 +217,14 @@ class ProductsViewModel @Inject constructor(
             searchQuery = "",
             selectedCategoryId = null,
             selectedSupplierId = null,
-            filteredProducts = _uiState.value.products
+            sortOption = SortOption.NAME_ASC,
+            filteredProducts = applySorting(_uiState.value.products)
         )
     }
 
     private fun applyFilters(products: List<ProductWithDetails>): List<ProductWithDetails> {
         val state = _uiState.value
-        return products.filter { p ->
+        val filtered = products.filter { p ->
             val matchesSearch = state.searchQuery.isBlank() ||
                     p.product.name.contains(state.searchQuery, ignoreCase = true) ||
                     p.product.code.contains(state.searchQuery, ignoreCase = true)
@@ -176,6 +234,27 @@ class ProductsViewModel @Inject constructor(
                     p.product.supplierId == state.selectedSupplierId
             matchesSearch && matchesCategory && matchesSupplier
         }
+        return applySorting(filtered)
+    }
+
+    private fun applySorting(products: List<ProductWithDetails>): List<ProductWithDetails> {
+        return when (_uiState.value.sortOption) {
+            SortOption.NAME_ASC -> products.sortedBy { it.product.name.lowercase() }
+            SortOption.NAME_DESC -> products.sortedByDescending { it.product.name.lowercase() }
+            SortOption.CODE_ASC -> products.sortedBy { it.product.code.lowercase() }
+            SortOption.CODE_DESC -> products.sortedByDescending { it.product.code.lowercase() }
+            SortOption.PRICE_ASC -> products.sortedBy { it.product.defaultSalePriceVnd }
+            SortOption.PRICE_DESC -> products.sortedByDescending { it.product.defaultSalePriceVnd }
+            SortOption.NEWEST -> products.sortedByDescending { it.product.createdAt }
+            SortOption.OLDEST -> products.sortedBy { it.product.createdAt }
+        }
+    }
+
+    fun setSortOption(option: SortOption) {
+        _uiState.value = _uiState.value.copy(
+            sortOption = option,
+            filteredProducts = applySorting(_uiState.value.filteredProducts)
+        )
     }
 
     fun showDeleteConfirm(product: ProductWithDetails) {
@@ -190,6 +269,27 @@ class ProductsViewModel @Inject constructor(
             showDeleteConfirm = false,
             productToDelete = null
         )
+    }
+
+    fun deleteProduct(id: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            when (productRepository.delete(id)) {
+                is Result.Success<*> -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        showDeleteConfirm = false,
+                        productToDelete = null
+                    )
+                    loadProducts()
+                }
+                is Result.Error -> _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Xoa san pham that bai"
+                )
+                is Result.Loading -> {}
+            }
+        }
     }
 
     fun discontinueProduct(id: String) {
@@ -278,12 +378,44 @@ class ProductsViewModel @Inject constructor(
     // --- Form ---
 
     fun initFormForAdd() {
-        _formUiState.value = ProductFormUiState(
-            categories = _uiState.value.categories,
-            units = _uiState.value.units,
-            suppliers = _uiState.value.suppliers,
-            isEditMode = false
-        )
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "initFormForAdd: waiting for loadLookups to complete")
+                lookupMutex.withLock {
+                    val lookups = if (
+                        _uiState.value.categories.isEmpty() &&
+                        _uiState.value.units.isEmpty() &&
+                        _uiState.value.suppliers.isEmpty()
+                    ) {
+                        fetchLookups().also {
+                            _uiState.value = _uiState.value.copy(
+                                categories = it.categories,
+                                units = it.units,
+                                suppliers = it.suppliers
+                            )
+                        }
+                    } else {
+                        ProductLookups(
+                            categories = _uiState.value.categories,
+                            units = _uiState.value.units,
+                            suppliers = _uiState.value.suppliers
+                        )
+                    }
+
+                    Log.d(TAG, "initFormForAdd: lookup data ready")
+                    _formUiState.value = ProductFormUiState(
+                        categories = lookups.categories,
+                        units = lookups.units,
+                        suppliers = lookups.suppliers,
+                        isEditMode = false
+                    )
+                    Log.d(TAG, "initFormForAdd: loaded - categories=${lookups.categories.size}, units=${lookups.units.size}, suppliers=${lookups.suppliers.size}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "initFormForAdd: failed - ${e.message}", e)
+                _formUiState.value = ProductFormUiState(isEditMode = false)
+            }
+        }
     }
 
     fun initFormForEdit(productId: String) {
@@ -293,20 +425,42 @@ class ProductsViewModel @Inject constructor(
             when (val result = productRepository.getById(productId)) {
                 is Result.Success -> {
                     val p = result.data.product
-                    _formUiState.value = ProductFormUiState(
-                        name = p.name,
-                        categoryId = p.categoryId,
-                        unitId = p.unitId,
-                        supplierId = p.supplierId,
-                        purchasePrice = p.defaultPurchasePriceVnd.toString(),
-                        salePrice = p.defaultSalePriceVnd.toString(),
-                        categories = _uiState.value.categories,
-                        units = _uiState.value.units,
-                        suppliers = _uiState.value.suppliers,
-                        isEditMode = true,
-                        editingProductId = productId,
-                        isLoading = false
-                    )
+                    lookupMutex.withLock {
+                        val lookups = if (
+                            _uiState.value.categories.isEmpty() &&
+                            _uiState.value.units.isEmpty() &&
+                            _uiState.value.suppliers.isEmpty()
+                        ) {
+                            fetchLookups().also {
+                                _uiState.value = _uiState.value.copy(
+                                    categories = it.categories,
+                                    units = it.units,
+                                    suppliers = it.suppliers
+                                )
+                            }
+                        } else {
+                            ProductLookups(
+                                categories = _uiState.value.categories,
+                                units = _uiState.value.units,
+                                suppliers = _uiState.value.suppliers
+                            )
+                        }
+
+                        _formUiState.value = ProductFormUiState(
+                            name = p.name,
+                            categoryId = p.categoryId,
+                            unitId = p.unitId,
+                            supplierId = p.supplierId,
+                            purchasePrice = p.defaultPurchasePriceVnd.toString(),
+                            salePrice = p.defaultSalePriceVnd.toString(),
+                            categories = lookups.categories,
+                            units = lookups.units,
+                            suppliers = lookups.suppliers,
+                            isEditMode = true,
+                            editingProductId = productId,
+                            isLoading = false
+                        )
+                    }
                 }
                 is Result.Error -> _formUiState.value = _formUiState.value.copy(
                     isLoading = false,

@@ -7,6 +7,7 @@ import com.vinh.dyvat.data.model.ProductWithDetails
 import com.vinh.dyvat.data.model.PurchaseItemWithDetails
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.Supplier
+import com.vinh.dyvat.data.model.TicketStatus
 import com.vinh.dyvat.data.model.UnitModel
 import com.vinh.dyvat.data.repository.CategoryRepository
 import com.vinh.dyvat.data.repository.ProductRepository
@@ -62,7 +63,7 @@ data class PurchaseTicketCardUi(
     val id: String,
     val code: String,
     val purchaseDate: String,
-    val status: com.vinh.dyvat.data.model.TicketStatus,
+    val status: TicketStatus,
     val totalAmountVnd: Long,
     val itemCount: Int
 )
@@ -71,7 +72,7 @@ data class PurchaseTicketUi(
     val id: String,
     val code: String,
     val purchaseDate: String,
-    val status: com.vinh.dyvat.data.model.TicketStatus,
+    val status: TicketStatus,
     val cancelledAt: String?,
     val cancelReason: String?
 )

@@ -29,7 +29,7 @@ import com.vinh.dyvat.ui.screens.units.UnitsScreen
 fun DyvatNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    startDestination: String = Screen.Home.route
+    startDestination: String = Screen.Splash.route
 ) {
     NavHost(
         navController = navController,
