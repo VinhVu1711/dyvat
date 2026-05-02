@@ -1,7 +1,6 @@
 package com.vinh.dyvat.ui.components
 
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +36,7 @@ fun DyvatTopBar(
                 fontWeight = FontWeight.Bold
             )
         },
-        modifier = modifier.statusBarsPadding(),
+        modifier = modifier,
         navigationIcon = {
             if (showBackButton) {
                 IconButton(onClick = onBackClick) {

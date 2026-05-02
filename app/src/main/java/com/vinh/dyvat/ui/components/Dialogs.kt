@@ -197,3 +197,67 @@ fun ConfirmDeleteDialog(
         }
     )
 }
+
+@Composable
+fun ErrorDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MidDark,
+        title = {
+            Text(
+                text = title,
+                color = TextWhite
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                color = TextSilver
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+            ) {
+                Text("Đã hiểu", color = NearBlack)
+            }
+        }
+    )
+}
+
+@Composable
+fun SuccessDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MidDark,
+        title = {
+            Text(
+                text = title,
+                color = SpotifyGreen
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                color = TextSilver
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+            ) {
+                Text("OK", color = NearBlack)
+            }
+        }
+    )
+}

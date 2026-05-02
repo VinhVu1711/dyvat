@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalShipping
@@ -69,12 +70,19 @@ fun ProductDetailScreen(
     productId: String,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
+    onProductDeleted: () -> Unit = onNavigateBack,
     viewModel: ProductsViewModel = hiltViewModel()
 ) {
     val detailState by viewModel.detailUiState.collectAsState()
 
     LaunchedEffect(productId) {
         viewModel.loadProductDetail(productId)
+    }
+
+    LaunchedEffect(detailState.navigateBack) {
+        if (detailState.navigateBack) {
+            onProductDeleted()
+        }
     }
 
     Scaffold(
@@ -328,6 +336,28 @@ fun ProductDetailScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = { viewModel.requestDeleteProduct(productId) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(500.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = NegativeRed
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Xoa vinh vien",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -357,6 +387,25 @@ fun ProductDetailScreen(
                 viewModel.reactivateProduct(productId)
                 viewModel.hideReactivateConfirm()
             }
+        )
+    }
+
+    if (detailState.showCannotDeleteDialog) {
+        com.vinh.dyvat.ui.components.ErrorDialog(
+            title = "Khong the xoa san pham",
+            message = detailState.cannotDeleteMessage,
+            onDismiss = { viewModel.hideCannotDeleteDialog() }
+        )
+    }
+
+    if (detailState.showDeleteConfirm) {
+        ConfirmDialog(
+            title = "Xac nhan xoa",
+            message = "Ban co chan muon xoa san pham \"${detailState.product?.product?.name}\"? Hanh dong nay khong the hoan tac.",
+            confirmText = "Xoa",
+            isDestructive = true,
+            onDismiss = { viewModel.hideDetailDeleteConfirm() },
+            onConfirm = { viewModel.performDeleteProduct(productId) }
         )
     }
 }

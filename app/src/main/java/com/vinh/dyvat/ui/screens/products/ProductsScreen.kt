@@ -16,20 +16,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,12 +78,33 @@ fun ProductsScreen(
     @Suppress("UNUSED_PARAMETER") onNavigateToDetail: (String) -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateToAdd: () -> Unit,
     @Suppress("UNUSED_PARAMETER") showBackButton: Boolean = true,
+    refreshSignal: Boolean = false,
+    onRefreshHandled: () -> Unit = {},
     viewModel: ProductsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showCategorySheet by remember { mutableStateOf(false) }
     var showSupplierSheet by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.loadProducts()
+            onRefreshHandled()
+        }
+    }
+
+    LaunchedEffect(uiState.filteredProducts, uiState.currentPage) {
+        if (uiState.currentPage == 0 && uiState.filteredProducts.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    fun onRefresh() {
+        viewModel.loadProducts()
+    }
 
     Scaffold(
         containerColor = NearBlack,
@@ -194,6 +220,33 @@ fun ProductsScreen(
                 }
             }
 
+            // Toggle: show discontinued products
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Hien thi san pham ngung kinh doanh",
+                    color = TextSilver,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Switch(
+                    checked = uiState.showInactive,
+                    onCheckedChange = { viewModel.setShowInactive(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = SpotifyGreen,
+                        checkedTrackColor = SpotifyGreen.copy(alpha = 0.5f),
+                        uncheckedThumbColor = TextSilver,
+                        uncheckedTrackColor = MidDark
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Active filter chips
             if (uiState.selectedCategoryId != null || uiState.selectedSupplierId != null) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -211,11 +264,11 @@ fun ProductsScreen(
 
             // Content
             when {
-                uiState.isLoading -> LoadingIndicator()
-                uiState.error != null -> ErrorState(
+                uiState.error != null && uiState.products.isEmpty() -> ErrorState(
                     message = uiState.error ?: "",
                     onRetry = { viewModel.loadProducts() }
                 )
+                uiState.isLoading -> LoadingIndicator()
                 uiState.filteredProducts.isEmpty() -> EmptyState(
                     icon = Icons.Default.Inventory2,
                     title = if (uiState.searchQuery.isNotEmpty() || uiState.selectedCategoryId != null || uiState.selectedSupplierId != null) {
@@ -236,27 +289,49 @@ fun ProductsScreen(
                     } else null
                 )
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = 16.dp,
-                            vertical = 8.dp
-                        )
+                    PullToRefreshBox(
+                        isRefreshing = uiState.isLoading,
+                        onRefresh = { onRefresh() },
+                        state = pullToRefreshState,
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        items(
-                            items = uiState.filteredProducts,
-                            key = { it.product.id }
-                        ) { product ->
-                            ProductCard(
-                                product = product,
-                                onClick = { onNavigateToDetail(product.product.id) },
-                                onEditClick = { onNavigateToDetail(product.product.id) },
-                                onDeleteClick = { viewModel.showDeleteConfirm(product) }
+                        LazyColumn(
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 16.dp,
+                                vertical = 8.dp
                             )
-                        }
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp))
+                        ) {
+                            items(
+                                items = uiState.filteredProducts,
+                                key = { it.product.id }
+                            ) { product ->
+                                ProductCard(
+                                    product = product,
+                                    onClick = { onNavigateToDetail(product.product.id) },
+                                    onResumeClick = { viewModel.requestResumeProduct(product.product.id) }
+                                )
+                            }
+                            if (uiState.hasMore) {
+                                item {
+                                    TextButton(
+                                        onClick = { viewModel.loadMore() },
+                                        enabled = !uiState.isLoadingMore,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = if (uiState.isLoadingMore) "Dang tai..." else "Tai them san pham",
+                                            color = SpotifyGreen,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                            item {
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
                         }
                     }
                 }
@@ -302,6 +377,20 @@ fun ProductsScreen(
             onDismiss = { viewModel.hideDeleteConfirm() },
             onConfirm = {
                 viewModel.deleteProduct(uiState.productToDelete!!.product.id)
+            }
+        )
+    }
+
+    // Resume confirm dialog
+    if (uiState.showResumeConfirm && uiState.resumeProductId != null) {
+        val productName = uiState.products.find { it.product.id == uiState.resumeProductId }?.product?.name ?: "sản phẩm này"
+        ConfirmDialog(
+            title = "Kích hoạt sản phẩm",
+            message = "San pham \"$productName\" se duoc hien thi tro lai trong danh sach kinh doanh.",
+            confirmText = "Kich hoat",
+            onDismiss = { viewModel.hideResumeConfirm() },
+            onConfirm = {
+                viewModel.confirmResumeProduct()
             }
         )
     }
@@ -519,103 +608,71 @@ private fun FilterSheet(
 private fun ProductCard(
     product: ProductWithDetails,
     onClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onResumeClick: (() -> Unit)? = null
 ) {
+    val isDiscontinued = product.product.status == com.vinh.dyvat.data.model.ProductStatus.DISCONTINUED
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(DarkSurface)
+            .background(if (isDiscontinued) MidDark.copy(alpha = 0.5f) else DarkSurface)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                // Mã sản phẩm
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (isDiscontinued) {
                 Text(
-                    text = "Mã sản phẩm: ${product.product.code.ifEmpty { "—" }}",
-                    color = TextSilver,
-                    style = MaterialTheme.typography.bodySmall
+                    text = "NGUNG KINH DOANH",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                // Tên sản phẩm
-                Text(
-                    text = product.product.name,
-                    color = TextWhite,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Loại sản phẩm
-                Text(
-                    text = "Loại sản phẩm: ${product.categoryName.ifEmpty { "—" }}",
-                    color = TextSilver,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                // Nhà cung cấp
-                Text(
-                    text = "Nhà cung cấp: ${product.supplierName.ifEmpty { "—" }}",
-                    color = TextSilver,
-                    style = MaterialTheme.typography.bodySmall
-                )
             }
-
-            // Action buttons
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ActionButton(
-                    text = "Sửa",
-                    icon = Icons.Default.Edit,
-                    onClick = onEditClick,
-                    isPrimary = false
-                )
-                ActionButton(
-                    text = "Xóa",
-                    icon = Icons.Default.Delete,
-                    onClick = onDeleteClick,
-                    isPrimary = false,
-                    isDestructive = true
-                )
+            Text(
+                text = "Ma san pham: ${product.product.code.ifEmpty { "—" }}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = product.product.name,
+                color = TextWhite,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Loai san pham: ${product.categoryName.ifEmpty { "—" }}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Nha cung cap: ${product.supplierName.ifEmpty { "—" }}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (isDiscontinued && onResumeClick != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedButton(
+                    onClick = onResumeClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = SpotifyGreen
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Kinh doanh lai", fontWeight = FontWeight.Medium)
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun ActionButton(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") isPrimary: Boolean = false,
-    isDestructive: Boolean = false
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (isDestructive) LightBorder.copy(alpha = 0.3f) else MidDark)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = if (isDestructive) TextSilver else TextWhite,
-            modifier = Modifier.size(14.dp)
-        )
-        Text(
-            text = text,
-            color = if (isDestructive) TextSilver else TextWhite,
-            style = MaterialTheme.typography.labelSmall
-        )
     }
 }

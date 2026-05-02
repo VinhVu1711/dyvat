@@ -1,6 +1,8 @@
 package com.vinh.dyvat.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -69,7 +71,10 @@ fun DyvatNavHost(
             )
         }
 
-        composable(Screen.Products.route) {
+        composable(Screen.Products.route) { backStackEntry ->
+            val shouldRefreshProducts by backStackEntry.savedStateHandle
+                .getStateFlow("products_should_refresh", false)
+                .collectAsState()
             ProductsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { productId ->
@@ -78,7 +83,11 @@ fun DyvatNavHost(
                 onNavigateToAdd = {
                     navController.navigate(Screen.ProductForm.createRoute())
                 },
-                showBackButton = false
+                showBackButton = false,
+                refreshSignal = shouldRefreshProducts,
+                onRefreshHandled = {
+                    backStackEntry.savedStateHandle["products_should_refresh"] = false
+                }
             )
         }
 
@@ -92,6 +101,11 @@ fun DyvatNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = { id ->
                     navController.navigate(Screen.ProductForm.createRoute(id))
+                },
+                onProductDeleted = {
+                    navController.getBackStackEntry(Screen.Products.route)
+                        .savedStateHandle["products_should_refresh"] = true
+                    navController.popBackStack()
                 }
             )
         }
@@ -109,7 +123,12 @@ fun DyvatNavHost(
             val productId = backStackEntry.arguments?.getString("productId")
             ProductFormScreen(
                 productId = productId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onProductSaved = {
+                    navController.getBackStackEntry(Screen.Products.route)
+                        .savedStateHandle["products_should_refresh"] = true
+                    navController.popBackStack()
+                }
             )
         }
 

@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,8 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vinh.dyvat.ui.components.ErrorDialog
 import com.vinh.dyvat.ui.components.FormDropdownSelector
 import com.vinh.dyvat.ui.components.LoadingIndicator
+import com.vinh.dyvat.ui.components.SuccessDialog
 import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
@@ -52,6 +56,7 @@ import com.vinh.dyvat.ui.theme.TextWhite
 fun ProductFormScreen(
     productId: String? = null,
     onNavigateBack: () -> Unit,
+    onProductSaved: () -> Unit = onNavigateBack,
     viewModel: ProductsViewModel = hiltViewModel()
 ) {
     val formState by viewModel.formUiState.collectAsState()
@@ -209,8 +214,30 @@ fun ProductFormScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = formState.addMultiple,
+                        onCheckedChange = { viewModel.updateFormAddMultiple(it) },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = SpotifyGreen,
+                            uncheckedColor = TextSilver,
+                            checkmarkColor = NearBlack
+                        )
+                    )
+                    Text(
+                        text = "Them hang loat",
+                        color = TextSilver,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Button(
-                    onClick = { viewModel.saveProduct(onNavigateBack) },
+                    onClick = { viewModel.saveProduct(onProductSaved) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -236,6 +263,29 @@ fun ProductFormScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+
+        if (formState.showSuccessDialog) {
+            SuccessDialog(
+                title = "Them san pham thanh cong",
+                message = if (formState.successDialogMessage.isNotEmpty()) {
+                    formState.successDialogMessage
+                } else {
+                    "San pham \"${formState.name.trim()}\" da duoc them vao he thong."
+                },
+                onDismiss = {
+                    viewModel.dismissSuccessDialog()
+                    onProductSaved()
+                }
+            )
+        }
+
+        if (formState.showErrorDialog) {
+            ErrorDialog(
+                title = formState.errorDialogTitle,
+                message = formState.errorDialogMessage,
+                onDismiss = { viewModel.dismissErrorDialog() }
+            )
         }
     }
 }
