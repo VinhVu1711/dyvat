@@ -1,9 +1,12 @@
 package com.vinh.dyvat.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,9 +18,11 @@ import com.vinh.dyvat.ui.screens.categories.CategoriesScreen
 import com.vinh.dyvat.ui.screens.home.HomeScreen
 import com.vinh.dyvat.ui.screens.inventory.InventoryListScreen
 import com.vinh.dyvat.ui.screens.inventory.InventoryDetailScreen
+import com.vinh.dyvat.ui.screens.purchase.AddPurchaseItemScreen
 import com.vinh.dyvat.ui.screens.purchase.PurchaseListScreen
 import com.vinh.dyvat.ui.screens.purchase.PurchaseDetailScreen
 import com.vinh.dyvat.ui.screens.purchase.PurchaseFormScreen
+import com.vinh.dyvat.ui.screens.purchase.PurchaseViewModel
 import com.vinh.dyvat.ui.screens.products.ProductDetailScreen
 import com.vinh.dyvat.ui.screens.products.ProductFormScreen
 import com.vinh.dyvat.ui.screens.products.ProductsScreen
@@ -156,9 +161,93 @@ fun DyvatNavHost(
             )
         }
 
-        composable(Screen.PurchaseForm.route) {
+        composable(Screen.PurchaseForm.route) { backStackEntry ->
+            val viewModel: PurchaseViewModel = hiltViewModel(backStackEntry)
+            val formState by viewModel.formState.collectAsState()
+
+            // Save products and suppliers to SavedStateHandle before navigating
+            LaunchedEffect(formState.availableProducts, formState.suppliers) {
+                val productsJson = formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultPurchasePriceVnd" to it.product.defaultPurchasePriceVnd
+                    )
+                }
+                val suppliersList = formState.suppliers.map {
+                    mapOf("id" to it.id, "name" to it.name)
+                }
+                backStackEntry.savedStateHandle["available_products"] = productsJson
+                backStackEntry.savedStateHandle["suppliers_list"] = suppliersList
+            }
+
             PurchaseFormScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                navController = navController,
+                viewModel = viewModel
+            )
+        }
+
+        composable(
+            route = Screen.AddPurchaseItem.route,
+            arguments = listOf(navArgument("purchaseDate") { type = NavType.StringType })
+        ) { backStackEntry ->
+            // Use parent ViewModel to share state with PurchaseFormScreen
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry(Screen.PurchaseForm.route)
+            }
+            val viewModel: PurchaseViewModel = hiltViewModel(parentEntry)
+            val purchaseDate = backStackEntry.arguments?.getString("purchaseDate") ?: ""
+
+            // Get products and suppliers from parent ViewModel state
+            val formState by viewModel.formState.collectAsState()
+            val productsData = remember(formState.availableProducts) {
+                formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultPurchasePriceVnd" to it.product.defaultPurchasePriceVnd
+                    )
+                }
+            }
+            val suppliersData = remember(formState.suppliers) {
+                formState.suppliers.map { mapOf("id" to it.id, "name" to it.name) }
+            }
+
+            AddPurchaseItemScreen(
+                purchaseDate = purchaseDate,
+                suppliersData = suppliersData,
+                availableProductsData = productsData,
+                onProductAdded = { productId, productName, supplierId, supplierName, unitId, unitName, quantity, expiryDate, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("added_product_id", productId)
+                        set("added_product_name", productName)
+                        set("added_supplier_id", supplierId)
+                        set("added_supplier_name", supplierName)
+                        set("added_unit_id", unitId)
+                        set("added_unit_name", unitName)
+                        set("added_quantity", quantity)
+                        set("added_expiry_date", expiryDate)
+                        set("added_price", price)
+                    }
+                    navController.popBackStack()
+                },
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel
             )
         }
 

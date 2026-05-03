@@ -17,18 +17,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +39,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,7 +53,6 @@ import com.vinh.dyvat.ui.components.StatusType
 import com.vinh.dyvat.ui.components.toVnd
 import com.vinh.dyvat.ui.theme.DarkCard
 import com.vinh.dyvat.ui.theme.DarkSurface
-import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
 import com.vinh.dyvat.ui.theme.TextSilver
@@ -84,9 +78,9 @@ fun PurchaseDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Chi tiet phieu nhap",
+                        text = "CHI TIẾT PHIẾU NHẬP HÀNG",
                         color = TextWhite,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -94,7 +88,7 @@ fun PurchaseDetailScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lai",
+                                contentDescription = "Quay lại",
                             tint = TextWhite
                         )
                     }
@@ -123,7 +117,10 @@ fun PurchaseDetailScreen(
                 ) {
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
+                    }
 
+                    // Ticket Info Card
+                    item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = DarkCard),
@@ -134,83 +131,50 @@ fun PurchaseDetailScreen(
                                     .fillMaxWidth()
                                     .padding(16.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = ticket.code.ifEmpty { "Phieu #${ticket.id.take(8)}" },
-                                            color = TextWhite,
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CalendarToday,
-                                                contentDescription = null,
-                                                tint = TextSilver,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Text(
-                                                text = formatDate(ticket.purchaseDate),
-                                                color = TextSilver,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
-                                    }
+                                // Mã phiếu nhập hàng
+                                Text(
+                                    text = "Mã phiếu nhập hàng: ${ticket.code.ifEmpty { ticket.id.take(8).uppercase() }}",
+                                    color = TextWhite,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Ngày nhập hàng
+                                Text(
+                                    text = "Ngày nhập hàng: ${formatDate(ticket.purchaseDate)}",
+                                    color = TextWhite,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Tổng tiền nhập
+                                Text(
+                                    text = "Tổng tiền nhập: ${totalAmount.toVnd()}",
+                                    color = SpotifyGreen,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Trạng thái
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Trạng thái: ",
+                                        color = TextWhite,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                     if (isCancelled) {
                                         StatusBadge(
-                                            label = "Da huy",
+                                            label = "Đã hủy",
                                             type = StatusType.CANCELLED
                                         )
-                                    }
-                                }
-
-                                if (isCancelled) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Ly do huy: ${ticket.cancelReason ?: "Khong co"}",
-                                        color = WarningOrange,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "So dong",
-                                            color = TextSilver,
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                        Text(
-                                            text = "${detailState.items.size}",
-                                            color = TextWhite,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "Tong tien",
-                                            color = TextSilver,
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                        Text(
-                                            text = totalAmount.toVnd(),
-                                            color = SpotifyGreen,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
+                                    } else {
+                                        StatusBadge(
+                                            label = "Đang hoạt động",
+                                            type = StatusType.ACTIVE
                                         )
                                     }
                                 }
@@ -218,22 +182,24 @@ fun PurchaseDetailScreen(
                         }
                     }
 
+                    // Product list header
                     item {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Danh sach san pham",
+                            text = "Danh sách sản phẩm đã nhập",
                             color = TextWhite,
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 4.dp)
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
+                    // Product items
                     if (detailState.items.isEmpty()) {
                         item {
                             EmptyState(
-                                icon = Icons.Default.Inventory2,
-                                title = "Khong co san pham",
-                                subtitle = "Phieu nay chua co san pham nao"
+                                icon = Icons.Default.Receipt,
+                                title = "Không có sản phẩm",
+                                subtitle = "Phiếu này chưa có sản phẩm nào"
                             )
                         }
                     } else {
@@ -241,35 +207,93 @@ fun PurchaseDetailScreen(
                             items = detailState.items,
                             key = { it.item.id }
                         ) { item ->
-                            PurchaseItemRow(item = item)
+                            PurchaseItemCard(item = item)
+                        }
+                    }
+
+                    // Total amount section
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = TextSilver.copy(alpha = 0.3f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Tổng tiền nhập trong phiếu:",
+                                color = TextWhite,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = totalAmount.toVnd(),
+                                color = SpotifyGreen,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Action buttons
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Edit button (only for active tickets)
+                            if (!isCancelled) {
+                                OutlinedButton(
+                                    onClick = { /* Navigate to edit */ },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = TextWhite
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Chỉnh sửa phiếu nhập",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // Cancel button (only for active tickets)
+                            if (!isCancelled) {
+                                OutlinedButton(
+                                    onClick = { viewModel.showCancelConfirm() },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = WarningOrange
+                                    )
+                                ) {
+                                    Text(
+                                        text = "Hủy phiếu nhập",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (!isCancelled) {
-                            OutlinedButton(
-                                onClick = { viewModel.showCancelConfirm() },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(500.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = WarningOrange
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Cancel,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Huy phieu nhap",
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
                         Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
@@ -277,11 +301,12 @@ fun PurchaseDetailScreen(
         }
     }
 
+    // Cancel confirmation dialog
     if (detailState.showCancelConfirm) {
         ConfirmDialog(
-            title = "Huy phieu nhap",
-            message = "Ban co chac muon huy phieu nhap nay? Hanh dong nay co the anh huong ton kho.",
-            confirmText = "Huy phieu",
+            title = "Hủy phiếu nhập",
+            message = "Bạn có chắc muốn hủy phiếu nhập này? Hành động này có thể ảnh hưởng tồn kho.",
+            confirmText = "Hủy phiếu",
             isDestructive = true,
             onDismiss = { viewModel.hideCancelConfirm() },
             onConfirm = {
@@ -292,98 +317,85 @@ fun PurchaseDetailScreen(
 }
 
 @Composable
-private fun PurchaseItemRow(item: PurchaseItemWithDetails) {
+private fun PurchaseItemCard(item: PurchaseItemWithDetails) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(16.dp)
         ) {
+            // Tên sản phẩm
             Text(
-                text = item.productName,
+                text = "Tên sản phẩm: ${item.productName}",
                 color = TextWhite,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Nhà cung cấp
+            if (item.supplierName.isNotEmpty()) {
+                Text(
+                    text = "Nhà cung cấp: ${item.supplierName}",
+                    color = TextSilver,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // Đơn vị tính
+            Text(
+                text = "Đơn vị tính: ${item.unitName}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
             Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Straighten,
-                        contentDescription = null,
-                        tint = TextSilver,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${item.item.quantityPurchased} ${item.unitName}",
-                        color = TextSilver,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                if (item.supplierName.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.LocalShipping,
-                            contentDescription = null,
-                            tint = TextSilver,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = item.supplierName,
-                            color = TextSilver,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-
-                if (!item.item.expiryDate.isNullOrEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            tint = TextSilver,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "HSD: ${formatDate(item.item.expiryDate)}",
-                            color = TextSilver,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
+            // Ngày hết hạn
+            if (!item.item.expiryDate.isNullOrEmpty()) {
+                Text(
+                    text = "Ngày hết hạn: ${formatDate(item.item.expiryDate)}",
+                    color = TextSilver,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
             }
+
+            // Số lượng nhập
+            Text(
+                text = "Số lượng nhập: ${item.item.quantityPurchased}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Giá nhập / 1 đơn vị
+            Text(
+                text = "Giá nhập / 1 đơn vị: ${item.item.purchasePriceVnd.toVnd()}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodyMedium
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${item.item.purchasePriceVnd.toVnd()} / ${item.unitName}",
-                    color = TextWhite,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = item.item.lineTotalVnd.toVnd(),
-                    color = SpotifyGreen,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            HorizontalDivider(color = TextSilver.copy(alpha = 0.2f))
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Tổng tiền nhập sản phẩm này
+            Text(
+                text = "Tổng tiền nhập sản phẩm này: ${item.item.lineTotalVnd.toVnd()}",
+                color = SpotifyGreen,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

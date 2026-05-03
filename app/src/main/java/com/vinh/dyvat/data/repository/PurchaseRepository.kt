@@ -1,5 +1,6 @@
 package com.vinh.dyvat.data.repository
 
+import android.util.Log
 import com.vinh.dyvat.data.model.PurchaseItem
 import com.vinh.dyvat.data.model.PurchaseItemWithDetails
 import com.vinh.dyvat.data.model.PurchaseTicket
@@ -71,9 +72,11 @@ class PurchaseRepository @Inject constructor(
     fun getItemsByTicketId(ticketId: String): Flow<Result<List<PurchaseItemWithDetails>>> = flow {
         emit(Result.Loading)
         try {
+            Log.d("PurchaseRepository", "getItemsByTicketId: loading items for ticketId=$ticketId")
             val items = supabaseClient.postgrest[SupabaseTables.PURCHASE_ITEMS]
                 .select { filter { eq("purchase_ticket_id", ticketId) } }
                 .decodeList<PurchaseItem>()
+            Log.d("PurchaseRepository", "getItemsByTicketId: found ${items.size} items from database")
 
             val products = supabaseClient.postgrest[SupabaseTables.PRODUCTS]
                 .select().decodeList<com.vinh.dyvat.data.model.Product>()
@@ -89,16 +92,26 @@ class PurchaseRepository @Inject constructor(
 
             val result = items.map { item ->
                 val product = products[item.productId]
+                // Calculate lineTotalVnd if not stored correctly in database
+                val calculatedLineTotal = if (item.lineTotalVnd > 0) {
+                    item.lineTotalVnd
+                } else {
+                    item.quantityPurchased.toLong() * item.purchasePriceVnd
+                }
+                val itemWithCalculatedTotal = item.copy(lineTotalVnd = calculatedLineTotal)
+                Log.d("PurchaseRepository", "getItemsByTicketId: item - productId=${item.productId}, qty=${item.quantityPurchased}, price=${item.purchasePriceVnd}, lineTotal=$calculatedLineTotal")
                 PurchaseItemWithDetails(
-                    item = item,
+                    item = itemWithCalculatedTotal,
                     productName = product?.name ?: "",
                     productCode = product?.code ?: "",
                     supplierName = suppliers[item.supplierId]?.name ?: "",
                     unitName = units[item.unitId]?.name ?: ""
                 )
             }
+            Log.d("PurchaseRepository", "getItemsByTicketId: returning ${result.size} items")
             emit(Result.Success(result))
         } catch (e: Exception) {
+            Log.e("PurchaseRepository", "getItemsByTicketId: failed - ${e.message}", e)
             emit(Result.Error(e.message ?: "Lỗi khi tải chi tiết phiếu nhập", e))
         }
     }
@@ -108,12 +121,16 @@ class PurchaseRepository @Inject constructor(
         items: List<PurchaseItemDraft>
     ): Result<String> {
         return try {
+            Log.d("PurchaseRepository", "createTicket: creating ticket with date=$purchaseDate, items count=${items.size}")
             val ticket = PurchaseTicket(purchaseDate = purchaseDate)
             val insertedTicket = supabaseClient.postgrest[SupabaseTables.PURCHASE_TICKETS]
                 .insert(ticket)
                 .decodeSingle<PurchaseTicket>()
+            Log.d("PurchaseRepository", "createTicket: ticket created with id=${insertedTicket.id}")
 
             for (draft in items) {
+                val lineTotalVnd = draft.quantityPurchased.toLong() * draft.purchasePriceVnd
+                Log.d("PurchaseRepository", "createTicket: inserting item - productId=${draft.productId}, qty=${draft.quantityPurchased}, price=${draft.purchasePriceVnd}, lineTotal=$lineTotalVnd")
                 val item = PurchaseItem(
                     purchaseTicketId = insertedTicket.id,
                     productId = draft.productId,
@@ -121,14 +138,17 @@ class PurchaseRepository @Inject constructor(
                     unitId = draft.unitId,
                     expiryDate = draft.expiryDate,
                     quantityPurchased = draft.quantityPurchased,
-                    purchasePriceVnd = draft.purchasePriceVnd
+                    purchasePriceVnd = draft.purchasePriceVnd,
+                    lineTotalVnd = lineTotalVnd
                 )
                 supabaseClient.postgrest[SupabaseTables.PURCHASE_ITEMS]
                     .insert(item)
+                Log.d("PurchaseRepository", "createTicket: item inserted successfully")
             }
 
             Result.Success(insertedTicket.id)
         } catch (e: Exception) {
+            Log.e("PurchaseRepository", "createTicket: failed - ${e.message}", e)
             Result.Error(e.message ?: "Lỗi khi tạo phiếu nhập", e)
         }
     }
