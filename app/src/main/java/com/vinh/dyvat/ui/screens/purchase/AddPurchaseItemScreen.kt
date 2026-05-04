@@ -47,6 +47,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vinh.dyvat.data.model.Product
 import com.vinh.dyvat.data.model.ProductWithDetails
 import com.vinh.dyvat.ui.components.DyvatSearchBar
 import com.vinh.dyvat.ui.components.toVnd
@@ -73,7 +75,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Data classes for map-based data
 data class ProductData(
     val id: String,
     val name: String,
@@ -87,7 +88,7 @@ data class ProductData(
     val defaultPurchasePriceVnd: Long
 ) {
     fun toProductWithDetails() = ProductWithDetails(
-        product = com.vinh.dyvat.data.model.Product(
+        product = Product(
             id = id,
             name = name,
             code = code,
@@ -113,6 +114,7 @@ fun AddPurchaseItemScreen(
     purchaseDate: String,
     suppliersData: List<Map<String, Any?>>,
     availableProductsData: List<Map<String, Any?>>,
+    editingItem: PurchaseItemDraftUi? = null,
     onProductAdded: (
         productId: String,
         productName: String,
@@ -124,60 +126,73 @@ fun AddPurchaseItemScreen(
         expiryDate: String,
         price: String
     ) -> Unit,
+    onProductEdited: (
+        itemId: Int,
+        productId: String,
+        productName: String,
+        supplierId: String,
+        supplierName: String,
+        unitId: String,
+        unitName: String,
+        quantity: String,
+        expiryDate: String,
+        price: String
+    ) -> Unit = { _, _, _, _, _, _, _, _, _, _ -> },
     onNavigateBack: () -> Unit,
     viewModel: PurchaseViewModel = hiltViewModel()
 ) {
+    val isEditMode = editingItem != null
+    val availableProducts = remember(availableProductsData) {
+        availableProductsData.mapNotNull { map ->
+            ProductData(
+                id = map["id"] as? String ?: return@mapNotNull null,
+                name = map["name"] as? String ?: "",
+                code = map["code"] as? String ?: "",
+                categoryId = map["categoryId"] as? String ?: "",
+                categoryName = map["categoryName"] as? String ?: "",
+                unitId = map["unitId"] as? String ?: "",
+                unitName = map["unitName"] as? String ?: "",
+                supplierId = map["supplierId"] as? String ?: "",
+                supplierName = map["supplierName"] as? String ?: "",
+                defaultPurchasePriceVnd = (map["defaultPurchasePriceVnd"] as? Number)?.toLong() ?: 0L
+            )
+        }
+    }
+    val suppliers = remember(suppliersData) {
+        suppliersData.mapNotNull { map ->
+            SupplierData(
+                id = map["id"] as? String ?: return@mapNotNull null,
+                name = map["name"] as? String ?: ""
+            )
+        }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedProductData by remember { mutableStateOf<ProductData?>(null) }
     var selectedSupplierId by remember { mutableStateOf<String?>(null) }
-    var selectedSupplierName by remember { mutableStateOf<String>("") }
+    var selectedSupplierName by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var expiryDate by remember { mutableStateOf("") }
     var purchasePrice by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
-
-    // Validation errors
     var productError by remember { mutableStateOf<String?>(null) }
     var quantityError by remember { mutableStateOf<String?>(null) }
     var expiryDateError by remember { mutableStateOf<String?>(null) }
     var priceError by remember { mutableStateOf<String?>(null) }
 
-    // Convert map data to typed data
-    val availableProducts = remember(availableProductsData) {
-        availableProductsData.mapNotNull { map ->
-            try {
-                ProductData(
-                    id = map["id"] as? String ?: return@mapNotNull null,
-                    name = map["name"] as? String ?: "",
-                    code = map["code"] as? String ?: "",
-                    categoryId = map["categoryId"] as? String ?: "",
-                    categoryName = map["categoryName"] as? String ?: "",
-                    unitId = map["unitId"] as? String ?: "",
-                    unitName = map["unitName"] as? String ?: "",
-                    supplierId = map["supplierId"] as? String ?: "",
-                    supplierName = map["supplierName"] as? String ?: "",
-                    defaultPurchasePriceVnd = (map["defaultPurchasePriceVnd"] as? Number)?.toLong() ?: 0L
-                )
-            } catch (e: Exception) {
-                null
+    LaunchedEffect(editingItem?.id, availableProducts, suppliers) {
+        editingItem?.let { item ->
+            selectedProductData = availableProducts.find { it.id == item.productId }
+            selectedSupplierId = item.supplierId.ifBlank { null }
+            selectedSupplierName = item.supplierName.ifBlank {
+                suppliers.find { it.id == item.supplierId }?.name ?: ""
             }
+            quantity = item.quantity
+            expiryDate = item.expiryDate
+            purchasePrice = item.purchasePrice
         }
     }
 
-    val suppliers = remember(suppliersData) {
-        suppliersData.mapNotNull { map ->
-            try {
-                SupplierData(
-                    id = map["id"] as? String ?: return@mapNotNull null,
-                    name = map["name"] as? String ?: ""
-                )
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-
-    // Auto-calculate line total
     val lineTotal by remember {
         derivedStateOf {
             val qty = quantity.toLongOrNull() ?: 0L
@@ -185,32 +200,36 @@ fun AddPurchaseItemScreen(
             qty * price
         }
     }
-
-    // Filter products based on search
     val filteredProducts = if (searchQuery.isBlank()) {
         availableProducts
     } else {
         availableProducts.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
-            it.code.contains(searchQuery, ignoreCase = true)
+                    it.code.contains(searchQuery, ignoreCase = true)
         }
     }
 
-    // Validate expiry date against purchase date
-    fun validateExpiryDate(expiry: String, purchase: String): String? {
-        if (expiry.isBlank()) {
-            return "Ngày hết hạn là bắt buộc"
+    fun selectProduct(product: ProductData) {
+        selectedProductData = product
+        productError = null
+        purchasePrice = product.defaultPurchasePriceVnd.toString()
+        if (product.supplierName.isNotEmpty()) {
+            selectedSupplierId = product.supplierId
+            selectedSupplierName = product.supplierName
         }
+    }
+
+    fun validateExpiryDate(expiry: String, purchase: String): String? {
+        if (expiry.isBlank()) return "Ngày hết hạn là bắt buộc"
         return try {
             val inputFormat = SimpleDateFormat("dd/MM/yyyy", Locale.US)
             val expiryDateObj = inputFormat.parse(expiry)
             val purchaseDateObj = inputFormat.parse(purchase)
-            if (expiryDateObj != null && purchaseDateObj != null) {
-                if (expiryDateObj <= purchaseDateObj) {
-                    return "Ngày hết hạn phải lớn hơn ngày nhập hàng"
-                }
+            if (expiryDateObj != null && purchaseDateObj != null && expiryDateObj <= purchaseDateObj) {
+                "Ngày hết hạn phải lớn hơn ngày nhập hàng"
+            } else {
+                null
             }
-            null
         } catch (_: Exception) {
             "Ngày hết hạn không hợp lệ"
         }
@@ -218,54 +237,62 @@ fun AddPurchaseItemScreen(
 
     fun validateAll(): Boolean {
         var isValid = true
-
         if (selectedProductData == null) {
             productError = "Vui lòng chọn sản phẩm"
             isValid = false
         } else {
             productError = null
         }
-
-        if (quantity.isBlank() || quantity.toIntOrNull() == null || quantity.toInt() <= 0) {
+        if (quantity.isBlank() || quantity.toIntOrNull()?.let { it > 0 } != true) {
             quantityError = "Số lượng phải lớn hơn 0"
             isValid = false
         } else {
             quantityError = null
         }
-
-        val expiryError = validateExpiryDate(expiryDate, purchaseDate)
-        if (expiryError != null) {
-            expiryDateError = expiryError
-            isValid = false
-        } else {
-            expiryDateError = null
-        }
-
-        if (purchasePrice.isBlank() || purchasePrice.toLongOrNull() == null || purchasePrice.toLong() < 0) {
+        expiryDateError = validateExpiryDate(expiryDate, purchaseDate)
+        if (expiryDateError != null) isValid = false
+        if (purchasePrice.isBlank() || purchasePrice.toLongOrNull()?.let { it >= 0 } != true) {
             priceError = "Giá nhập không hợp lệ"
             isValid = false
         } else {
             priceError = null
         }
-
         return isValid
     }
 
-    fun onAddClick() {
-        if (validateAll()) {
-            selectedProductData?.let { product ->
-                onProductAdded(
-                    product.id,
-                    product.name,
-                    selectedSupplierId ?: "",
-                    selectedSupplierName,
-                    product.unitId,
-                    product.unitName,
-                    quantity,
-                    expiryDate,
-                    purchasePrice
-                )
-            }
+    fun submitItem() {
+        if (!validateAll()) return
+        val product = selectedProductData ?: return
+        val supplierId = selectedSupplierId ?: ""
+        val submitSupplierName = selectedSupplierName.ifBlank {
+            suppliers.find { it.id == supplierId }?.name ?: ""
+        }
+
+        if (editingItem != null) {
+            onProductEdited(
+                editingItem.id,
+                product.id,
+                product.name,
+                supplierId,
+                submitSupplierName,
+                product.unitId,
+                product.unitName,
+                quantity,
+                expiryDate,
+                purchasePrice
+            )
+        } else {
+            onProductAdded(
+                product.id,
+                product.name,
+                supplierId,
+                submitSupplierName,
+                product.unitId,
+                product.unitName,
+                quantity,
+                expiryDate,
+                purchasePrice
+            )
         }
     }
 
@@ -275,7 +302,7 @@ fun AddPurchaseItemScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "THÊM SẢN PHẨM NHẬP",
+                        text = if (isEditMode) "SỬA SẢN PHẨM NHẬP" else "THÊM SẢN PHẨM NHẬP",
                         color = TextWhite,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -303,33 +330,19 @@ fun AddPurchaseItemScreen(
                 .imePadding()
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Product selection section
-            Text(
-                text = "Tên sản phẩm *",
-                color = TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Tên sản phẩm *", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
 
             if (selectedProductData == null) {
-                // Show search and product list
                 DyvatSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
                     placeholder = "Tìm sản phẩm...",
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-
                 productError?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-
                 if (filteredProducts.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -337,135 +350,34 @@ fun AddPurchaseItemScreen(
                             .height(100.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Không có sản phẩm",
-                            color = TextSilver,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text("Không có sản phẩm", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.height(200.dp)
-                    ) {
+                    LazyColumn(modifier = Modifier.height(200.dp)) {
                         items(filteredProducts) { product ->
-                            val isSelected = selectedProductData?.id == product.id
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) SpotifyGreen.copy(alpha = 0.1f) else DarkSurface)
-                                    .clickable {
-                                        selectedProductData = product
-                                        productError = null
-                                        // Auto-fill fields from product
-                                        purchasePrice = product.defaultPurchasePriceVnd.toString()
-                                        // Auto-select supplier if available
-                                        if (product.supplierName.isNotEmpty()) {
-                                            selectedSupplierId = product.supplierId
-                                            selectedSupplierName = product.supplierName
-                                        }
-                                    }
-                                    .padding(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = SpotifyGreen,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                    }
-                                    Text(
-                                        text = product.name,
-                                        color = if (isSelected) SpotifyGreen else TextWhite,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                    )
-                                }
-                                if (product.categoryName.isNotEmpty()) {
-                                    Text(
-                                        text = product.categoryName,
-                                        color = TextSilver,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
-                                    )
-                                }
-                                if (product.defaultPurchasePriceVnd > 0) {
-                                    Text(
-                                        text = "Giá: ${product.defaultPurchasePriceVnd.toVnd()}",
-                                        color = TextSilver,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
-                                    )
-                                }
-                            }
+                            ProductPickRow(
+                                product = product,
+                                isSelected = selectedProductData?.id == product.id,
+                                onClick = { selectProduct(product) }
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
                     }
                 }
             } else {
-                // Show selected product
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            selectedProductData = null
-                            selectedSupplierId = null
-                            selectedSupplierName = ""
-                            quantity = ""
-                            purchasePrice = ""
-                            expiryDate = ""
-                        },
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = SpotifyGreen,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = selectedProductData!!.name,
-                                color = SpotifyGreen,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Giá: ${selectedProductData!!.defaultPurchasePriceVnd.toVnd()}",
-                                color = TextSilver,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        Text(
-                            text = "Đổi",
-                            color = TextSilver,
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                SelectedProductCard(
+                    product = selectedProductData!!,
+                    onChange = {
+                        selectedProductData = null
+                        selectedSupplierId = null
+                        selectedSupplierName = ""
+                        searchQuery = ""
                     }
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Supplier dropdown
-            Text(
-                text = "Nhà cung cấp",
-                color = TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Nhà cung cấp", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             SupplierDropdownSimple(
                 suppliers = suppliers,
@@ -477,13 +389,7 @@ fun AddPurchaseItemScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Unit (read-only, auto-filled)
-            Text(
-                text = "Đơn vị tính",
-                color = TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Đơn vị tính", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = selectedProductData?.unitName ?: "",
@@ -500,42 +406,17 @@ fun AddPurchaseItemScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Quantity
-            Text(
-                text = "Số lượng nhập *",
-                color = if (quantityError != null) MaterialTheme.colorScheme.error else TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
+            NumberField(
+                label = "Số lượng nhập *",
                 value = quantity,
+                error = quantityError,
                 onValueChange = {
                     quantity = it.filter { c -> c.isDigit() }
                     quantityError = null
-                },
-                placeholder = { Text("0", color = TextSilver.copy(alpha = 0.5f)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = quantityError != null,
-                supportingText = quantityError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextWhite,
-                    unfocusedTextColor = TextWhite,
-                    focusedBorderColor = SpotifyGreen,
-                    unfocusedBorderColor = MidDark,
-                    focusedContainerColor = DarkSurface,
-                    unfocusedContainerColor = DarkSurface,
-                    cursorColor = SpotifyGreen,
-                    errorBorderColor = MaterialTheme.colorScheme.error
-                ),
-                shape = RoundedCornerShape(12.dp)
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Expiry date
             Text(
                 text = "Ngày hết hạn *",
                 color = if (expiryDateError != null) MaterialTheme.colorScheme.error else TextSilver,
@@ -549,7 +430,7 @@ fun AddPurchaseItemScreen(
             )
             expiryDateError?.let {
                 Text(
-                    text = it,
+                    it,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp)
@@ -557,51 +438,20 @@ fun AddPurchaseItemScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Purchase price
-            Text(
-                text = "Giá nhập cho 1 đơn vị *",
-                color = if (priceError != null) MaterialTheme.colorScheme.error else TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
+            NumberField(
+                label = "Giá nhập cho 1 đơn vị *",
                 value = purchasePrice,
+                error = priceError,
                 onValueChange = {
                     purchasePrice = it.filter { c -> c.isDigit() }
                     priceError = null
-                },
-                placeholder = { Text("0", color = TextSilver.copy(alpha = 0.5f)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = priceError != null,
-                supportingText = priceError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextWhite,
-                    unfocusedTextColor = TextWhite,
-                    focusedBorderColor = SpotifyGreen,
-                    unfocusedBorderColor = MidDark,
-                    focusedContainerColor = DarkSurface,
-                    unfocusedContainerColor = DarkSurface,
-                    cursorColor = SpotifyGreen,
-                    errorBorderColor = MaterialTheme.colorScheme.error
-                ),
-                shape = RoundedCornerShape(12.dp)
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
             HorizontalDivider(color = TextSilver.copy(alpha = 0.3f))
-
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Line total (auto-calculated)
-            Text(
-                text = "Tổng tiền nhập sản phẩm này",
-                color = TextSilver,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text("Tổng tiền nhập sản phẩm này", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = lineTotal.toVnd(),
@@ -616,7 +466,7 @@ fun AddPurchaseItemScreen(
                 shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
                     Text(
-                        text = "Tự tính",
+                        "Tự tính",
                         color = TextSilver.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(end = 12.dp)
@@ -625,8 +475,6 @@ fun AddPurchaseItemScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -638,40 +486,30 @@ fun AddPurchaseItemScreen(
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = "Hủy",
-                        color = TextSilver,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text("Hủy", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
-                    onClick = { onAddClick() },
+                    onClick = { submitItem() },
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = NearBlack
-                    )
+                    Icon(Icons.Default.Check, contentDescription = null, tint = NearBlack)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Thêm",
+                        text = if (isEditMode) "Lưu thay đổi" else "Thêm",
                         color = NearBlack,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 
-    // Expiry date picker
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
         DatePickerDialog(
@@ -698,6 +536,116 @@ fun AddPurchaseItemScreen(
             DatePicker(state = datePickerState)
         }
     }
+}
+
+@Composable
+private fun ProductPickRow(
+    product: ProductData,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) SpotifyGreen.copy(alpha = 0.1f) else DarkSurface)
+            .clickable(onClick = onClick)
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isSelected) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = SpotifyGreen, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = product.name,
+                color = if (isSelected) SpotifyGreen else TextWhite,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+        if (product.categoryName.isNotEmpty()) {
+            Text(
+                text = product.categoryName,
+                color = TextSilver,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
+            )
+        }
+        if (product.defaultPurchasePriceVnd > 0) {
+            Text(
+                text = "Giá: ${product.defaultPurchasePriceVnd.toVnd()}",
+                color = TextSilver,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedProductCard(
+    product: ProductData,
+    onChange: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onChange),
+        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Check, contentDescription = null, tint = SpotifyGreen, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(product.name, color = SpotifyGreen, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Giá: ${product.defaultPurchasePriceVnd.toVnd()}", color = TextSilver, style = MaterialTheme.typography.bodySmall)
+            }
+            Text("Đổi", color = TextSilver, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun NumberField(
+    label: String,
+    value: String,
+    error: String?,
+    onValueChange: (String) -> Unit
+) {
+    Text(
+        text = label,
+        color = if (error != null) MaterialTheme.colorScheme.error else TextSilver,
+        style = MaterialTheme.typography.bodyMedium
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text("0", color = TextSilver.copy(alpha = 0.5f)) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        isError = error != null,
+        supportingText = error?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextWhite,
+            unfocusedTextColor = TextWhite,
+            focusedBorderColor = SpotifyGreen,
+            unfocusedBorderColor = MidDark,
+            focusedContainerColor = DarkSurface,
+            unfocusedContainerColor = DarkSurface,
+            cursorColor = SpotifyGreen,
+            errorBorderColor = MaterialTheme.colorScheme.error
+        ),
+        shape = RoundedCornerShape(12.dp)
+    )
 }
 
 @Composable
@@ -750,11 +698,7 @@ private fun SupplierDropdownSimple(
                 .clickable { expanded = true },
             enabled = false,
             trailingIcon = {
-                Text(
-                    text = "▼",
-                    color = TextSilver,
-                    modifier = Modifier.padding(end = 12.dp)
-                )
+                Text("v", color = TextSilver, modifier = Modifier.padding(end = 12.dp))
             },
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = TextWhite,
@@ -770,12 +714,7 @@ private fun SupplierDropdownSimple(
         ) {
             if (suppliers.isEmpty()) {
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "Không có nhà cung cấp",
-                            color = TextSilver
-                        )
-                    },
+                    text = { Text("Không có nhà cung cấp", color = TextSilver) },
                     onClick = { expanded = false }
                 )
             } else {

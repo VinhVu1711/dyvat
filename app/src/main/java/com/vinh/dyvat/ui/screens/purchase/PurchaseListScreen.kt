@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,8 +24,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -31,6 +31,9 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +44,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vinh.dyvat.data.model.TicketStatus
-import com.vinh.dyvat.ui.components.DyvatTopBar
 import com.vinh.dyvat.ui.components.EmptyState
 import com.vinh.dyvat.ui.components.ErrorState
 import com.vinh.dyvat.ui.components.LoadingIndicator
@@ -62,13 +67,11 @@ import com.vinh.dyvat.ui.components.StatusBadge
 import com.vinh.dyvat.ui.components.StatusType
 import com.vinh.dyvat.ui.components.toVnd
 import com.vinh.dyvat.ui.theme.DarkCard
-import com.vinh.dyvat.ui.theme.DarkSurface
 import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
 import com.vinh.dyvat.ui.theme.TextSilver
 import com.vinh.dyvat.ui.theme.TextWhite
-import com.vinh.dyvat.ui.theme.WarningOrange
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,27 +83,48 @@ fun PurchaseListScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToAdd: () -> Unit,
     showBackButton: Boolean = true,
+    refreshSignal: Boolean = false,
+    onRefreshHandled: () -> Unit = {},
     viewModel: PurchaseViewModel = hiltViewModel()
 ) {
-    val listState by viewModel.listState.collectAsState()
+    val uiState by viewModel.listState.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     var showFromDatePicker by remember { mutableStateOf(false) }
     var showToDatePicker by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+    val lazyListState = rememberLazyListState()
+    val hasDateFilter = uiState.fromDate.isNotBlank() || uiState.toDate.isNotBlank()
+    val hasAnyFilter = uiState.searchQuery.isNotBlank() ||
+            hasDateFilter ||
+            uiState.selectedStatusFilter != TicketStatusFilter.ALL
+
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.loadTickets()
+            onRefreshHandled()
+        }
+    }
+
+    LaunchedEffect(uiState.filteredTickets, uiState.currentPage) {
+        if (uiState.currentPage == 0 && uiState.filteredTickets.isNotEmpty()) {
+            lazyListState.animateScrollToItem(0)
+        }
+    }
 
     Scaffold(
         containerColor = NearBlack,
         topBar = {
-            if (showBackButton) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "QUẢN LÝ NHẬP HÀNG",
-                            color = TextWhite,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    navigationIcon = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "QUẢN LÝ NHẬP HÀNG",
+                        color = TextWhite,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    if (showBackButton) {
                         IconButton(onClick = onNavigateBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -108,61 +132,59 @@ fun PurchaseListScreen(
                                 tint = TextWhite
                             )
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
-                )
-            } else {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "QUẢN LÝ NHẬP HÀNG",
-                            color = TextWhite,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToAdd,
+                containerColor = SpotifyGreen
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Tạo phiếu nhập hàng",
+                    tint = NearBlack
                 )
             }
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Search bar
-            item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(NearBlack)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 SearchTextField(
-                    value = listState.searchQuery,
+                    value = uiState.searchQuery,
                     onValueChange = { viewModel.setSearchQuery(it) },
                     placeholder = "Tìm kiếm mã phiếu nhập..."
                 )
-            }
 
-            // Sort dropdown
-            item {
                 Box {
                     SortDropdownButton(
-                        currentSort = listState.sortOption,
+                        currentSort = uiState.sortOption,
                         onClick = { showSortMenu = true }
                     )
                     DropdownMenu(
                         expanded = showSortMenu,
-                        onDismissRequest = { showSortMenu = false }
+                        onDismissRequest = { showSortMenu = false },
+                        modifier = Modifier.background(DarkCard)
                     ) {
                         SortOption.entries.forEach { option ->
                             DropdownMenuItem(
                                 text = {
                                     Text(
                                         text = option.label,
-                                        color = if (option == listState.sortOption) SpotifyGreen else TextWhite
+                                        color = if (option == uiState.sortOption) SpotifyGreen else TextWhite
                                     )
                                 },
                                 onClick = {
@@ -173,99 +195,147 @@ fun PurchaseListScreen(
                         }
                     }
                 }
-            }
 
-            // Date filter label
-            item {
+                StatusFilterRow(
+                    selected = uiState.selectedStatusFilter,
+                    onSelect = { viewModel.setStatusFilter(it) }
+                )
+
                 Text(
                     text = "Lọc ngày nhập",
                     color = TextSilver,
                     style = MaterialTheme.typography.bodyMedium
                 )
-            }
 
-            // Date filter row
-            item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DateFilterField(
                         label = "Từ ngày",
-                        date = listState.fromDate,
+                        date = uiState.fromDate,
                         onClick = { showFromDatePicker = true },
                         modifier = Modifier.weight(1f)
                     )
                     DateFilterField(
                         label = "Đến ngày",
-                        date = listState.toDate,
+                        date = uiState.toDate,
                         onClick = { showToDatePicker = true },
                         modifier = Modifier.weight(1f)
                     )
                 }
-            }
 
-            // List header
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Danh sách phiếu nhập hàng",
-                    color = TextWhite,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            // Content
-            when {
-                listState.isLoading -> {
-                    item {
-                        LoadingIndicator()
-                    }
-                }
-                listState.error != null -> {
-                    item {
-                        ErrorState(
-                            message = listState.error ?: "",
-                            onRetry = { viewModel.loadTickets() }
-                        )
-                    }
-                }
-                listState.filteredTickets.isEmpty() -> {
-                    item {
-                        EmptyState(
-                            icon = Icons.Default.Receipt,
-                            title = "Chưa có phiếu nhập",
-                            subtitle = "Tạo phiếu nhập hàng để bắt đầu"
-                        )
-                    }
-                }
-                else -> {
-                    items(
-                        items = listState.filteredTickets,
-                        key = { it.id }
-                    ) { ticket ->
-                        PurchaseTicketCard(
-                            ticket = ticket,
-                            onClick = { onNavigateToDetail(ticket.id) }
+                if (hasDateFilter) {
+                    TextButton(
+                        onClick = { viewModel.clearDateFilters() },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(
+                            text = "Hủy lọc ngày",
+                            color = SpotifyGreen,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
             }
 
-            // Add button
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                AddTicketButton(onClick = onNavigateToAdd)
-                Spacer(modifier = Modifier.height(32.dp))
+            PullToRefreshBox(
+                isRefreshing = uiState.isLoading,
+                onRefresh = { viewModel.loadTickets() },
+                state = pullToRefreshState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 88.dp
+                    )
+                ) {
+                    item {
+                        Text(
+                            text = "Danh sách phiếu nhập hàng",
+                            color = TextWhite,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    when {
+                        uiState.isLoading -> {
+                            item {
+                                LoadingIndicator()
+                            }
+                        }
+                        uiState.error != null && uiState.tickets.isEmpty() -> {
+                            item {
+                                ErrorState(
+                                    message = uiState.error ?: "",
+                                    onRetry = { viewModel.loadTickets() }
+                                )
+                            }
+                        }
+                        uiState.filteredTickets.isEmpty() -> {
+                            item {
+                                EmptyState(
+                                    icon = Icons.Default.Receipt,
+                                    title = if (hasAnyFilter) {
+                                        "Không tìm thấy phiếu nhập"
+                                    } else {
+                                        "Chưa có phiếu nhập"
+                                    },
+                                    subtitle = if (hasAnyFilter) {
+                                        "Thử thay đổi từ khóa hoặc bộ lọc"
+                                    } else {
+                                        "Nhấn + để tạo phiếu nhập hàng"
+                                    }
+                                )
+                            }
+                        }
+                        else -> {
+                            items(
+                                items = uiState.filteredTickets,
+                                key = { it.id }
+                            ) { ticket ->
+                                PurchaseTicketCard(
+                                    ticket = ticket,
+                                    onClick = { onNavigateToDetail(ticket.id) }
+                                )
+                            }
+
+                            if (uiState.hasMore) {
+                                item {
+                                    TextButton(
+                                        onClick = { viewModel.loadMore() },
+                                        enabled = !uiState.isLoadingMore,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = if (uiState.isLoadingMore) "Đang tải..." else "Tải thêm phiếu nhập",
+                                            color = SpotifyGreen,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    // From date picker
     if (showFromDatePicker) {
         val datePickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = listState.fromDate.toDateMillisOrNull()
+            initialSelectedDateMillis = uiState.fromDate.toDateMillisOrNull()
         )
         DatePickerDialog(
             onDismissRequest = { showFromDatePicker = false },
@@ -291,10 +361,9 @@ fun PurchaseListScreen(
         }
     }
 
-    // To date picker
     if (showToDatePicker) {
         val datePickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = listState.toDate.toDateMillisOrNull()
+            initialSelectedDateMillis = uiState.toDate.toDateMillisOrNull()
         )
         DatePickerDialog(
             onDismissRequest = { showToDatePicker = false },
@@ -378,11 +447,65 @@ private fun SortDropdownButton(
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = "▼",
+            text = "v",
             color = TextSilver,
             style = MaterialTheme.typography.bodySmall
         )
     }
+}
+
+@Composable
+private fun StatusFilterRow(
+    selected: TicketStatusFilter,
+    onSelect: (TicketStatusFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatusFilterChip(
+            label = "Tất cả phiếu",
+            selected = selected == TicketStatusFilter.ALL,
+            onClick = { onSelect(TicketStatusFilter.ALL) }
+        )
+        StatusFilterChip(
+            label = "Đang hoạt động",
+            selected = selected == TicketStatusFilter.ACTIVE,
+            onClick = { onSelect(TicketStatusFilter.ACTIVE) }
+        )
+        StatusFilterChip(
+            label = "Đã hủy",
+            selected = selected == TicketStatusFilter.CANCELLED,
+            onClick = { onSelect(TicketStatusFilter.CANCELLED) }
+        )
+    }
+}
+
+@Composable
+private fun StatusFilterChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                maxLines = 1,
+                style = MaterialTheme.typography.labelMedium
+            )
+        },
+        modifier = modifier,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = DarkCard,
+            labelColor = TextSilver,
+            selectedContainerColor = SpotifyGreen.copy(alpha = 0.2f),
+            selectedLabelColor = SpotifyGreen
+        )
+    )
 }
 
 @Composable
@@ -443,7 +566,6 @@ private fun PurchaseTicketCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Mã phiếu nhập
             Text(
                 text = "Mã phiếu nhập hàng: ${ticket.code.ifEmpty { ticket.id.take(8).uppercase() }}",
                 color = if (isCancelled) TextSilver else TextWhite,
@@ -453,7 +575,6 @@ private fun PurchaseTicketCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Ngày nhập hàng
             Text(
                 text = "Ngày nhập hàng: ${formatDate(ticket.purchaseDate)}",
                 color = TextSilver,
@@ -462,7 +583,6 @@ private fun PurchaseTicketCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Tổng tiền nhập
             Text(
                 text = "Tổng tiền nhập: ${ticket.totalAmountVnd.toVnd()}",
                 color = if (isCancelled) TextSilver else SpotifyGreen,
@@ -472,10 +592,7 @@ private fun PurchaseTicketCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Trạng thái
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Trạng thái: ",
                     color = TextSilver,
@@ -497,37 +614,14 @@ private fun PurchaseTicketCard(
     }
 }
 
-@Composable
-private fun AddTicketButton(onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = null,
-            tint = NearBlack
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "Tạo phiếu nhập hàng",
-            color = NearBlack,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
 private fun formatDate(dateStr: String): String {
     return try {
         val parts = dateStr.split("T")[0].split("-")
         if (parts.size == 3) {
             "${parts[2]}/${parts[1]}/${parts[0]}"
-        } else dateStr
+        } else {
+            dateStr
+        }
     } catch (_: Exception) {
         dateStr
     }

@@ -137,7 +137,10 @@ fun DyvatNavHost(
             )
         }
 
-        composable(Screen.PurchaseList.route) {
+        composable(Screen.PurchaseList.route) { backStackEntry ->
+            val shouldRefreshPurchase by backStackEntry.savedStateHandle
+                .getStateFlow("purchase_should_refresh", false)
+                .collectAsState()
             PurchaseListScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { ticketId ->
@@ -146,7 +149,11 @@ fun DyvatNavHost(
                 onNavigateToAdd = {
                     navController.navigate(Screen.PurchaseForm.route)
                 },
-                showBackButton = false
+                showBackButton = false,
+                refreshSignal = shouldRefreshPurchase,
+                onRefreshHandled = {
+                    backStackEntry.savedStateHandle["purchase_should_refresh"] = false
+                }
             )
         }
 
@@ -190,6 +197,11 @@ fun DyvatNavHost(
 
             PurchaseFormScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onTicketSaved = {
+                    navController.getBackStackEntry(Screen.PurchaseList.route)
+                        .savedStateHandle["purchase_should_refresh"] = true
+                    navController.popBackStack()
+                },
                 navController = navController,
                 viewModel = viewModel
             )
@@ -243,6 +255,83 @@ fun DyvatNavHost(
                         set("added_quantity", quantity)
                         set("added_expiry_date", expiryDate)
                         set("added_price", price)
+                        set("purchase_item_result_version", System.currentTimeMillis())
+                    }
+                    navController.popBackStack()
+                },
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel
+            )
+        }
+
+        composable(
+            route = Screen.EditPurchaseItem.route,
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.IntType },
+                navArgument("purchaseDate") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry(Screen.PurchaseForm.route)
+            }
+            val viewModel: PurchaseViewModel = hiltViewModel(parentEntry)
+            val purchaseDate = backStackEntry.arguments?.getString("purchaseDate") ?: ""
+            val itemId = backStackEntry.arguments?.getInt("itemId") ?: return@composable
+            val formState by viewModel.formState.collectAsState()
+            val editingItem = formState.items.find { it.id == itemId }
+            val productsData = remember(formState.availableProducts) {
+                formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultPurchasePriceVnd" to it.product.defaultPurchasePriceVnd
+                    )
+                }
+            }
+            val suppliersData = remember(formState.suppliers) {
+                formState.suppliers.map { mapOf("id" to it.id, "name" to it.name) }
+            }
+
+            AddPurchaseItemScreen(
+                purchaseDate = purchaseDate,
+                suppliersData = suppliersData,
+                availableProductsData = productsData,
+                editingItem = editingItem,
+                onProductAdded = { productId, productName, supplierId, supplierName, unitId, unitName, quantity, expiryDate, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("added_product_id", productId)
+                        set("added_product_name", productName)
+                        set("added_supplier_id", supplierId)
+                        set("added_supplier_name", supplierName)
+                        set("added_unit_id", unitId)
+                        set("added_unit_name", unitName)
+                        set("added_quantity", quantity)
+                        set("added_expiry_date", expiryDate)
+                        set("added_price", price)
+                        set("purchase_item_result_version", System.currentTimeMillis())
+                    }
+                    navController.popBackStack()
+                },
+                onProductEdited = { editedItemId, productId, productName, supplierId, supplierName, unitId, unitName, quantity, expiryDate, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("edited_item_id", editedItemId)
+                        set("edited_product_id", productId)
+                        set("edited_product_name", productName)
+                        set("edited_supplier_id", supplierId)
+                        set("edited_supplier_name", supplierName)
+                        set("edited_unit_id", unitId)
+                        set("edited_unit_name", unitName)
+                        set("edited_quantity", quantity)
+                        set("edited_expiry_date", expiryDate)
+                        set("edited_price", price)
+                        set("purchase_item_result_version", System.currentTimeMillis())
                     }
                     navController.popBackStack()
                 },

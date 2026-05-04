@@ -14,9 +14,11 @@ import com.vinh.dyvat.data.repository.CategoryRepository
 import com.vinh.dyvat.data.repository.ProductRepository
 import com.vinh.dyvat.data.repository.PurchaseItemDraft
 import com.vinh.dyvat.data.repository.PurchaseRepository
+import com.vinh.dyvat.data.repository.PurchaseTicketSortField
 import com.vinh.dyvat.data.repository.SupplierRepository
 import com.vinh.dyvat.data.repository.UnitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +41,10 @@ data class PurchaseListUiState(
     val searchQuery: String = "",
     val sortOption: SortOption = SortOption.DATE_NEWEST,
     val fromDate: String = "",
-    val toDate: String = ""
+    val toDate: String = "",
+    val hasMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val currentPage: Int = 0
 )
 
 data class PurchaseDetailUiState(
@@ -142,6 +147,11 @@ class PurchaseViewModel @Inject constructor(
     val formState: StateFlow<PurchaseFormUiState> = _formState.asStateFlow()
 
     private val lookupMutex = Mutex()
+    private var listLoadJob: Job? = null
+
+    companion object {
+        private const val PAGE_SIZE = 5
+    }
 
     init {
         loadTickets()
@@ -190,8 +200,25 @@ class PurchaseViewModel @Inject constructor(
     // --- List ---
 
     fun loadTickets() {
-        viewModelScope.launch {
-            purchaseRepository.getTicketCards().collect { result ->
+        listLoadJob?.cancel()
+        listLoadJob = viewModelScope.launch {
+            val state = _listState.value
+            _listState.value = state.copy(
+                isLoading = true,
+                isLoadingMore = false,
+                error = null,
+                currentPage = 0
+            )
+            purchaseRepository.getTicketCards(
+                startDate = state.fromDate.toApiDateOrNull(),
+                endDate = state.toDate.toApiDateOrNull(),
+                page = 0,
+                pageSize = PAGE_SIZE,
+                sortField = state.sortOption.toRepositorySortField(),
+                ascending = state.sortOption.isAscending(),
+                searchQuery = state.searchQuery,
+                status = state.selectedStatusFilter.toTicketStatusOrNull()
+            ).collect { result ->
                 _listState.value = when (result) {
                     is Result.Loading -> _listState.value.copy(isLoading = true, error = null)
                     is Result.Success -> {
@@ -208,7 +235,9 @@ class PurchaseViewModel @Inject constructor(
                         _listState.value.copy(
                             isLoading = false,
                             tickets = cards,
-                            filteredTickets = applyStatusFilter(cards),
+                            filteredTickets = cards,
+                            hasMore = cards.size >= PAGE_SIZE,
+                            currentPage = 0,
                             error = null
                         )
                     }
@@ -221,88 +250,134 @@ class PurchaseViewModel @Inject constructor(
         }
     }
 
+    fun loadMore() {
+        val state = _listState.value
+        if (state.isLoading || state.isLoadingMore || !state.hasMore) return
+
+        viewModelScope.launch {
+            _listState.value = state.copy(isLoadingMore = true, error = null)
+            val nextPage = state.currentPage + 1
+
+            purchaseRepository.getTicketCards(
+                startDate = state.fromDate.toApiDateOrNull(),
+                endDate = state.toDate.toApiDateOrNull(),
+                page = nextPage,
+                pageSize = PAGE_SIZE,
+                sortField = state.sortOption.toRepositorySortField(),
+                ascending = state.sortOption.isAscending(),
+                searchQuery = state.searchQuery,
+                status = state.selectedStatusFilter.toTicketStatusOrNull()
+            ).collect { result ->
+                when (result) {
+                    is Result.Loading -> {}
+                    is Result.Success -> {
+                        val newCards = result.data.map { card ->
+                            PurchaseTicketCardUi(
+                                id = card.id,
+                                code = card.code,
+                                purchaseDate = card.purchaseDate,
+                                status = card.status,
+                                totalAmountVnd = card.totalPurchaseAmountVnd,
+                                itemCount = card.itemCount
+                            )
+                        }
+                        val allCards = state.tickets + newCards
+                        _listState.value = _listState.value.copy(
+                            isLoadingMore = false,
+                            tickets = allCards,
+                            filteredTickets = allCards,
+                            hasMore = newCards.size >= PAGE_SIZE,
+                            currentPage = nextPage
+                        )
+                    }
+                    is Result.Error -> _listState.value = _listState.value.copy(
+                        isLoadingMore = false,
+                        error = result.message
+                    )
+                }
+            }
+        }
+    }
+
     fun setStatusFilter(filter: TicketStatusFilter) {
         _listState.value = _listState.value.copy(
-            selectedStatusFilter = filter,
-            filteredTickets = applyFilters(_listState.value.tickets)
+            selectedStatusFilter = filter
         )
+        loadTickets()
     }
 
     fun setSearchQuery(query: String) {
         _listState.value = _listState.value.copy(
-            searchQuery = query,
-            filteredTickets = applyFilters(_listState.value.tickets)
+            searchQuery = query
         )
+        loadTickets()
     }
 
     fun setSortOption(option: SortOption) {
         _listState.value = _listState.value.copy(
-            sortOption = option,
-            filteredTickets = applyFilters(_listState.value.tickets)
+            sortOption = option
         )
+        loadTickets()
     }
 
     fun setFromDate(date: String) {
         _listState.value = _listState.value.copy(
-            fromDate = date,
-            filteredTickets = applyFilters(_listState.value.tickets)
+            fromDate = date
         )
+        loadTickets()
     }
 
     fun setToDate(date: String) {
         _listState.value = _listState.value.copy(
-            toDate = date,
-            filteredTickets = applyFilters(_listState.value.tickets)
+            toDate = date
         )
+        loadTickets()
     }
 
-    private fun applyFilters(tickets: List<PurchaseTicketCardUi>): List<PurchaseTicketCardUi> {
-        val state = _listState.value
-        var result = tickets
-
-        // Apply status filter
-        result = when (state.selectedStatusFilter) {
-            TicketStatusFilter.ALL -> result
-            TicketStatusFilter.ACTIVE -> result.filter { it.status == com.vinh.dyvat.data.model.TicketStatus.ACTIVE }
-            TicketStatusFilter.CANCELLED -> result.filter { it.status == com.vinh.dyvat.data.model.TicketStatus.CANCELLED }
-        }
-
-        // Apply search query
-        if (state.searchQuery.isNotBlank()) {
-            result = result.filter { ticket ->
-                ticket.code.contains(state.searchQuery, ignoreCase = true) ||
-                ticket.id.contains(state.searchQuery, ignoreCase = true)
-            }
-        }
-
-        // Apply date filter
-        if (state.fromDate.isNotBlank()) {
-            result = result.filter { ticket ->
-                ticket.purchaseDate >= state.fromDate
-            }
-        }
-        if (state.toDate.isNotBlank()) {
-            result = result.filter { ticket ->
-                ticket.purchaseDate <= state.toDate
-            }
-        }
-
-        // Apply sorting
-        result = when (state.sortOption) {
-            SortOption.DATE_NEWEST -> result.sortedByDescending { it.purchaseDate }
-            SortOption.DATE_OLDEST -> result.sortedBy { it.purchaseDate }
-            SortOption.AMOUNT_HIGHEST -> result.sortedByDescending { it.totalAmountVnd }
-            SortOption.AMOUNT_LOWEST -> result.sortedBy { it.totalAmountVnd }
-        }
-
-        return result
+    fun clearDateFilters() {
+        _listState.value = _listState.value.copy(
+            fromDate = "",
+            toDate = ""
+        )
+        loadTickets()
     }
 
-    private fun applyStatusFilter(tickets: List<PurchaseTicketCardUi>): List<PurchaseTicketCardUi> {
-        return when (_listState.value.selectedStatusFilter) {
-            TicketStatusFilter.ALL -> tickets
-            TicketStatusFilter.ACTIVE -> tickets.filter { it.status == com.vinh.dyvat.data.model.TicketStatus.ACTIVE }
-            TicketStatusFilter.CANCELLED -> tickets.filter { it.status == com.vinh.dyvat.data.model.TicketStatus.CANCELLED }
+    private fun String.toApiDateOrNull(): String? {
+        if (isBlank()) return null
+        return try {
+            val inputFormat = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.US)
+            val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val date = inputFormat.parse(this)
+            outputFormat.format(date!!)
+        } catch (e: Exception) {
+            Log.e(TAG, "toApiDateOrNull: failed to parse date=$this - ${e.message}")
+            null
+        }
+    }
+
+    private fun SortOption.toRepositorySortField(): PurchaseTicketSortField {
+        return when (this) {
+            SortOption.DATE_NEWEST,
+            SortOption.DATE_OLDEST -> PurchaseTicketSortField.PURCHASE_DATE
+            SortOption.AMOUNT_HIGHEST,
+            SortOption.AMOUNT_LOWEST -> PurchaseTicketSortField.TOTAL_AMOUNT
+        }
+    }
+
+    private fun SortOption.isAscending(): Boolean {
+        return when (this) {
+            SortOption.DATE_OLDEST,
+            SortOption.AMOUNT_LOWEST -> true
+            SortOption.DATE_NEWEST,
+            SortOption.AMOUNT_HIGHEST -> false
+        }
+    }
+
+    private fun TicketStatusFilter.toTicketStatusOrNull(): TicketStatus? {
+        return when (this) {
+            TicketStatusFilter.ALL -> null
+            TicketStatusFilter.ACTIVE -> TicketStatus.ACTIVE
+            TicketStatusFilter.CANCELLED -> TicketStatus.CANCELLED
         }
     }
 
@@ -448,6 +523,41 @@ class PurchaseViewModel @Inject constructor(
             items = currentItems + newItem
         )
         Log.d(TAG, "addFormItemWithDetails: COMPLETE - items count after add = ${_formState.value.items.size}, totalAmount=${_formState.value.totalAmount}")
+    }
+
+    fun updateFormItemWithDetails(
+        itemId: Int,
+        product: ProductWithDetails,
+        supplier: Supplier?,
+        quantity: String,
+        expiryDate: String,
+        price: String
+    ) {
+        Log.d(TAG, "updateFormItemWithDetails: itemId=$itemId, product=${product.product.name}, qty=$quantity, expiry=$expiryDate, price=$price")
+        _formState.value = _formState.value.copy(
+            items = _formState.value.items.map { item ->
+                if (item.id == itemId) {
+                    item.copy(
+                        productId = product.product.id,
+                        productName = product.product.name,
+                        supplierId = supplier?.id ?: "",
+                        supplierName = supplier?.name ?: "",
+                        unitId = product.product.unitId,
+                        unitName = product.unitName,
+                        expiryDate = expiryDate,
+                        quantity = quantity,
+                        purchasePrice = price,
+                        productError = null,
+                        quantityError = null,
+                        priceError = null,
+                        expiryDateError = null
+                    )
+                } else {
+                    item
+                }
+            }
+        )
+        Log.d(TAG, "updateFormItemWithDetails: COMPLETE - totalAmount=${_formState.value.totalAmount}")
     }
 
     fun removeFormItem(itemId: Int) {
@@ -604,11 +714,20 @@ class PurchaseViewModel @Inject constructor(
 
             val drafts = state.items.map { item ->
                 Log.d(TAG, "saveTicket: mapping item - productId=${item.productId}, qty=${item.quantity}, price=${item.purchasePrice}")
+                val apiExpiryDate = try {
+                    val inputFormat = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.US)
+                    val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val date = inputFormat.parse(item.expiryDate)
+                    outputFormat.format(date!!)
+                } catch (e: Exception) {
+                    Log.e(TAG, "saveTicket: expiry date parse error - ${e.message}")
+                    item.expiryDate
+                }
                 PurchaseItemDraft(
                     productId = item.productId,
                     supplierId = item.supplierId,
                     unitId = item.unitId,
-                    expiryDate = item.expiryDate,
+                    expiryDate = apiExpiryDate,
                     quantityPurchased = item.quantity.toInt(),
                     purchasePriceVnd = item.purchasePrice.toLong()
                 )

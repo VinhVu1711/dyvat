@@ -20,6 +20,9 @@ sealed class Screen(val route: String) {
     object AddPurchaseItem : Screen("purchase/add-item?purchaseDate={purchaseDate}") {
         fun createRoute(purchaseDate: String) = "purchase/add-item?purchaseDate=$purchaseDate"
     }
+    object EditPurchaseItem : Screen("purchase/edit-item/{itemId}?purchaseDate={purchaseDate}") {
+        fun createRoute(itemId: Int, purchaseDate: String) = "purchase/edit-item/$itemId?purchaseDate=$purchaseDate"
+    }
     object Sales : Screen("sales")
     object Inventory : Screen("inventory")
     object InventoryLotDetail : Screen("inventory/{ticketId}") {

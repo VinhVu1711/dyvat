@@ -79,12 +79,18 @@ import java.util.Locale
 @Composable
 fun PurchaseFormScreen(
     onNavigateBack: () -> Unit,
+    onTicketSaved: () -> Unit = onNavigateBack,
     navController: NavController,
     viewModel: PurchaseViewModel
 ) {
     val formState by viewModel.formState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
     var showSaveConfirmDialog by remember { mutableStateOf(false) }
+    var itemToDelete by remember { mutableStateOf<PurchaseItemDraftUi?>(null) }
+    val itemResultVersion by navController.currentBackStackEntry?.savedStateHandle
+        ?.getStateFlow("purchase_item_result_version", 0L)
+        ?.collectAsState()
+        ?: remember { mutableStateOf(0L) }
 
     // Handle result from AddPurchaseItemScreen via SavedStateHandle
     LaunchedEffect(Unit) {
@@ -130,6 +136,78 @@ fun PurchaseFormScreen(
             } else {
                 Log.d("PurchaseFormScreen", "LaunchedEffect: no productId in savedStateHandle")
             }
+        }
+    }
+
+    LaunchedEffect(itemResultVersion, formState.availableProducts, formState.suppliers) {
+        if (itemResultVersion == 0L) return@LaunchedEffect
+
+        navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
+            val editedItemId = savedStateHandle.get<Int>("edited_item_id")
+            val addedProductId = savedStateHandle.get<String>("added_product_id")
+            val productId = savedStateHandle.get<String>("edited_product_id") ?: addedProductId
+
+            if (productId == null) return@let
+
+            val supplierId = savedStateHandle.get<String>("edited_supplier_id")
+                ?: savedStateHandle.get<String>("added_supplier_id")
+                ?: ""
+            val quantity = savedStateHandle.get<String>("edited_quantity")
+                ?: savedStateHandle.get<String>("added_quantity")
+                ?: ""
+            val expiryDate = savedStateHandle.get<String>("edited_expiry_date")
+                ?: savedStateHandle.get<String>("added_expiry_date")
+                ?: ""
+            val price = savedStateHandle.get<String>("edited_price")
+                ?: savedStateHandle.get<String>("added_price")
+                ?: ""
+            val productWithDetails = formState.availableProducts.find { it.product.id == productId }
+            val supplier = formState.suppliers.find { it.id == supplierId }
+
+            if (productWithDetails == null) {
+                Log.w("PurchaseFormScreen", "Item result pending: product not found, productId=$productId")
+                return@let
+            }
+
+            if (editedItemId != null) {
+                viewModel.updateFormItemWithDetails(
+                    itemId = editedItemId,
+                    product = productWithDetails,
+                    supplier = supplier,
+                    quantity = quantity,
+                    expiryDate = expiryDate,
+                    price = price
+                )
+            } else {
+                viewModel.addFormItemWithDetails(
+                    product = productWithDetails,
+                    supplier = supplier,
+                    quantity = quantity,
+                    expiryDate = expiryDate,
+                    price = price
+                )
+            }
+
+            savedStateHandle.remove<Long>("purchase_item_result_version")
+            savedStateHandle.remove<String>("added_product_id")
+            savedStateHandle.remove<String>("added_product_name")
+            savedStateHandle.remove<String>("added_supplier_id")
+            savedStateHandle.remove<String>("added_supplier_name")
+            savedStateHandle.remove<String>("added_unit_id")
+            savedStateHandle.remove<String>("added_unit_name")
+            savedStateHandle.remove<String>("added_quantity")
+            savedStateHandle.remove<String>("added_expiry_date")
+            savedStateHandle.remove<String>("added_price")
+            savedStateHandle.remove<Int>("edited_item_id")
+            savedStateHandle.remove<String>("edited_product_id")
+            savedStateHandle.remove<String>("edited_product_name")
+            savedStateHandle.remove<String>("edited_supplier_id")
+            savedStateHandle.remove<String>("edited_supplier_name")
+            savedStateHandle.remove<String>("edited_unit_id")
+            savedStateHandle.remove<String>("edited_unit_name")
+            savedStateHandle.remove<String>("edited_quantity")
+            savedStateHandle.remove<String>("edited_expiry_date")
+            savedStateHandle.remove<String>("edited_price")
         }
     }
 
@@ -226,7 +304,14 @@ fun PurchaseFormScreen(
                 ) { _, item ->
                     PurchaseItemCard(
                         item = item,
-                        onClick = { /* TODO: Edit item */ }
+                        onEdit = {
+                            navController.navigate(
+                                Screen.EditPurchaseItem.createRoute(item.id, formState.purchaseDate)
+                            )
+                        },
+                        onDelete = {
+                            itemToDelete = item
+                        }
                     )
                 }
             }
@@ -337,6 +422,21 @@ fun PurchaseFormScreen(
         }
     }
 
+    itemToDelete?.let { item ->
+        ConfirmDialog(
+            title = "Xác nhận xóa sản phẩm nhập",
+            message = "Bạn có muốn xóa \"${item.productName}\" khỏi phiếu nhập này không?",
+            confirmText = "Xóa",
+            dismissText = "Hủy",
+            isDestructive = true,
+            onDismiss = { itemToDelete = null },
+            onConfirm = {
+                viewModel.removeFormItem(item.id)
+                itemToDelete = null
+            }
+        )
+    }
+
     // Save confirm dialog
     if (showSaveConfirmDialog) {
         ConfirmDialog(
@@ -349,7 +449,7 @@ fun PurchaseFormScreen(
                 // Only call saveTicket if not already saving
                 if (!formState.isSaving) {
                     viewModel.saveTicket {
-                        onNavigateBack()
+                        onTicketSaved()
                     }
                 }
             }
@@ -428,12 +528,11 @@ private fun EmptyProductList(onAddClick: () -> Unit) {
 @Composable
 private fun PurchaseItemCard(
     item: PurchaseItemDraftUi,
-    onClick: () -> Unit
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -526,6 +625,40 @@ private fun PurchaseItemCard(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Sửa",
+                            color = SpotifyGreen,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Button(
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Xóa",
+                            color = TextWhite,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
