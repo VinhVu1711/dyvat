@@ -26,7 +26,11 @@ import com.vinh.dyvat.ui.screens.purchase.PurchaseViewModel
 import com.vinh.dyvat.ui.screens.products.ProductDetailScreen
 import com.vinh.dyvat.ui.screens.products.ProductFormScreen
 import com.vinh.dyvat.ui.screens.products.ProductsScreen
-import com.vinh.dyvat.ui.screens.sales.SalesScreen
+import com.vinh.dyvat.ui.screens.sales.AddSaleItemScreen
+import com.vinh.dyvat.ui.screens.sales.SaleDetailScreen
+import com.vinh.dyvat.ui.screens.sales.SaleFormScreen
+import com.vinh.dyvat.ui.screens.sales.SaleListScreen
+import com.vinh.dyvat.ui.screens.sales.SaleViewModel
 import com.vinh.dyvat.ui.screens.settings.SettingsScreen
 import com.vinh.dyvat.ui.screens.statistics.StatisticsScreen
 import com.vinh.dyvat.ui.screens.suppliers.SuppliersScreen
@@ -346,8 +350,191 @@ fun DyvatNavHost(
             )
         }
 
-        composable(Screen.Sales.route) {
-            SalesScreen()
+        composable(Screen.Sales.route) { backStackEntry ->
+            val shouldRefreshSales by backStackEntry.savedStateHandle
+                .getStateFlow("sales_should_refresh", false)
+                .collectAsState()
+            SaleListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { ticketId ->
+                    navController.navigate(Screen.SaleDetail.createRoute(ticketId))
+                },
+                onNavigateToAdd = {
+                    navController.navigate(Screen.SaleForm.route)
+                },
+                showBackButton = false,
+                refreshSignal = shouldRefreshSales,
+                onRefreshHandled = {
+                    backStackEntry.savedStateHandle["sales_should_refresh"] = false
+                }
+            )
+        }
+
+        composable(
+            route = Screen.SaleDetail.route,
+            arguments = listOf(navArgument("ticketId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val ticketId = backStackEntry.arguments?.getString("ticketId") ?: return@composable
+            SaleDetailScreen(
+                ticketId = ticketId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.SaleForm.route) { backStackEntry ->
+            val viewModel: SaleViewModel = hiltViewModel(backStackEntry)
+            val formState by viewModel.formState.collectAsState()
+
+            LaunchedEffect(formState.availableProducts) {
+                val productsJson = formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultSalePriceVnd" to it.product.defaultSalePriceVnd
+                    )
+                }
+                backStackEntry.savedStateHandle["sale_available_products"] = productsJson
+            }
+
+            SaleFormScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onTicketSaved = {
+                    navController.getBackStackEntry(Screen.Sales.route)
+                        .savedStateHandle["sales_should_refresh"] = true
+                    navController.popBackStack()
+                },
+                navController = navController,
+                viewModel = viewModel
+            )
+        }
+
+        composable(
+            route = Screen.AddSaleItem.route,
+            arguments = listOf(navArgument("saleDate") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry(Screen.SaleForm.route)
+            }
+            val viewModel: SaleViewModel = hiltViewModel(parentEntry)
+            val saleDate = backStackEntry.arguments?.getString("saleDate") ?: ""
+            val formState by viewModel.formState.collectAsState()
+            val productsData = remember(formState.availableProducts) {
+                formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultSalePriceVnd" to it.product.defaultSalePriceVnd
+                    )
+                }
+            }
+
+            AddSaleItemScreen(
+                saleDate = saleDate,
+                availableProductsData = productsData,
+                onProductAdded = { productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("added_sale_product_id", productId)
+                        set("added_sale_product_name", productName)
+                        set("added_sale_purchase_item_id", purchaseItemId)
+                        set("added_sale_lot_code", lotCode)
+                        set("added_sale_expiry_date", expiryDate)
+                        set("added_sale_quantity_remaining", quantityRemaining)
+                        set("added_sale_purchase_price", purchasePrice)
+                        set("added_sale_quantity", quantity)
+                        set("added_sale_price", price)
+                        set("sale_item_result_version", System.currentTimeMillis())
+                    }
+                    navController.popBackStack()
+                },
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel
+            )
+        }
+
+        composable(
+            route = Screen.EditSaleItem.route,
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.IntType },
+                navArgument("saleDate") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry(Screen.SaleForm.route)
+            }
+            val viewModel: SaleViewModel = hiltViewModel(parentEntry)
+            val saleDate = backStackEntry.arguments?.getString("saleDate") ?: ""
+            val itemId = backStackEntry.arguments?.getInt("itemId") ?: return@composable
+            val formState by viewModel.formState.collectAsState()
+            val editingItem = formState.items.find { it.id == itemId }
+            val productsData = remember(formState.availableProducts) {
+                formState.availableProducts.map {
+                    mapOf(
+                        "id" to it.product.id,
+                        "name" to it.product.name,
+                        "code" to it.product.code,
+                        "categoryId" to it.product.categoryId,
+                        "categoryName" to it.categoryName,
+                        "unitId" to it.product.unitId,
+                        "unitName" to it.unitName,
+                        "supplierId" to it.product.supplierId,
+                        "supplierName" to it.supplierName,
+                        "defaultSalePriceVnd" to it.product.defaultSalePriceVnd
+                    )
+                }
+            }
+
+            AddSaleItemScreen(
+                saleDate = saleDate,
+                availableProductsData = productsData,
+                editingItem = editingItem,
+                onProductAdded = { productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("added_sale_product_id", productId)
+                        set("added_sale_product_name", productName)
+                        set("added_sale_purchase_item_id", purchaseItemId)
+                        set("added_sale_lot_code", lotCode)
+                        set("added_sale_expiry_date", expiryDate)
+                        set("added_sale_quantity_remaining", quantityRemaining)
+                        set("added_sale_purchase_price", purchasePrice)
+                        set("added_sale_quantity", quantity)
+                        set("added_sale_price", price)
+                        set("sale_item_result_version", System.currentTimeMillis())
+                    }
+                    navController.popBackStack()
+                },
+                onProductEdited = { editedItemId, productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("edited_sale_item_id", editedItemId)
+                        set("edited_sale_product_id", productId)
+                        set("edited_sale_product_name", productName)
+                        set("edited_sale_purchase_item_id", purchaseItemId)
+                        set("edited_sale_lot_code", lotCode)
+                        set("edited_sale_expiry_date", expiryDate)
+                        set("edited_sale_quantity_remaining", quantityRemaining)
+                        set("edited_sale_purchase_price", purchasePrice)
+                        set("edited_sale_quantity", quantity)
+                        set("edited_sale_price", price)
+                        set("sale_item_result_version", System.currentTimeMillis())
+                    }
+                    navController.popBackStack()
+                },
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel
+            )
         }
 
         composable(Screen.Inventory.route) {

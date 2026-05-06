@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -18,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -30,6 +34,7 @@ import com.vinh.dyvat.ui.theme.DyvatTheme
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
 import com.vinh.dyvat.ui.theme.TextSilver
+import com.vinh.dyvat.ui.theme.TextWhite
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -64,6 +69,7 @@ fun DyvatApp() {
             if (showBottomBar) {
                 NavigationBar(
                     containerColor = DarkSurface,
+                    tonalElevation = 0.dp
                 ) {
                     bottomNavItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
@@ -71,10 +77,17 @@ fun DyvatApp() {
                             icon = {
                                 Icon(
                                     imageVector = item.icon,
-                                    contentDescription = item.title
+                                    contentDescription = item.title,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             },
-                            label = { Text(item.title) },
+                            label = {
+                                Text(
+                                    text = item.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            },
                             selected = selected,
                             onClick = {
                                 navController.navigate(item.route) {
@@ -86,11 +99,11 @@ fun DyvatApp() {
                                 }
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = SpotifyGreen,
-                                selectedTextColor = SpotifyGreen,
+                                selectedIconColor = TextWhite,
+                                selectedTextColor = TextWhite,
                                 unselectedIconColor = TextSilver,
                                 unselectedTextColor = TextSilver,
-                                indicatorColor = DarkSurface
+                                indicatorColor = SpotifyGreen.copy(alpha = 0.15f)
                             )
                         )
                     }

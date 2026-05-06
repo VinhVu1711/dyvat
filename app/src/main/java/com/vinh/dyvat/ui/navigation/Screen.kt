@@ -24,6 +24,16 @@ sealed class Screen(val route: String) {
         fun createRoute(itemId: Int, purchaseDate: String) = "purchase/edit-item/$itemId?purchaseDate=$purchaseDate"
     }
     object Sales : Screen("sales")
+    object SaleDetail : Screen("sales/{ticketId}") {
+        fun createRoute(ticketId: String) = "sales/$ticketId"
+    }
+    object SaleForm : Screen("sales/form")
+    object AddSaleItem : Screen("sales/add-item?saleDate={saleDate}") {
+        fun createRoute(saleDate: String) = "sales/add-item?saleDate=$saleDate"
+    }
+    object EditSaleItem : Screen("sales/edit-item/{itemId}?saleDate={saleDate}") {
+        fun createRoute(itemId: Int, saleDate: String) = "sales/edit-item/$itemId?saleDate=$saleDate"
+    }
     object Inventory : Screen("inventory")
     object InventoryLotDetail : Screen("inventory/{ticketId}") {
         fun createRoute(ticketId: String) = "inventory/$ticketId"
