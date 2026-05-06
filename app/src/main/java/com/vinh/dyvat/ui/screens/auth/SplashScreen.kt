@@ -1,5 +1,6 @@
 package com.vinh.dyvat.ui.screens.auth
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,15 +37,25 @@ fun SplashScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
+        Log.d("SplashScreen", "Trigger checkAuthState")
         viewModel.checkAuthState()
     }
 
     LaunchedEffect(uiState.authState) {
         when (uiState.authState) {
-            is AuthState.LoggedIn -> onNavigateToMain()
-            is AuthState.NotLoggedIn -> onNavigateToLogin()
-            is AuthState.Error -> onNavigateToLogin()
-            is AuthState.Unknown -> {}
+            is AuthState.LoggedIn -> {
+                Log.d("SplashScreen", "AuthState.LoggedIn -> Home")
+                onNavigateToMain()
+            }
+            is AuthState.NotLoggedIn -> {
+                Log.d("SplashScreen", "AuthState.NotLoggedIn -> Login")
+                onNavigateToLogin()
+            }
+            is AuthState.Error -> {
+                Log.d("SplashScreen", "AuthState.Error -> Login")
+                onNavigateToLogin()
+            }
+            is AuthState.Unknown -> Unit
         }
     }
 

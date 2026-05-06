@@ -1,5 +1,6 @@
 package com.vinh.dyvat.ui.screens.products
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -22,6 +24,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +48,7 @@ import com.vinh.dyvat.ui.components.ErrorDialog
 import com.vinh.dyvat.ui.components.FormDropdownSelector
 import com.vinh.dyvat.ui.components.LoadingIndicator
 import com.vinh.dyvat.ui.components.SuccessDialog
+import com.vinh.dyvat.ui.theme.DarkCard
 import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
@@ -76,9 +80,9 @@ fun ProductFormScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (isEditMode) "Sua san pham" else "Them san pham",
+                        text = if (isEditMode) "SỬA SẢN PHẨM" else "THÊM SẢN PHẨM",
                         color = TextWhite,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -86,14 +90,12 @@ fun ProductFormScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lai",
+                            contentDescription = "Quay lại",
                             tint = TextWhite
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = NearBlack
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
             )
         }
     ) { innerPadding ->
@@ -105,67 +107,70 @@ fun ProductFormScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-                    .imePadding()
+                    .padding(horizontal = 16.dp)
+                    .imePadding(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Spacer(modifier = Modifier.height(8.dp))
+
                 FormTextField(
-                    label = "Ten san pham *",
+                    label = "Tên sản phẩm *",
                     value = formState.name,
                     onValueChange = { viewModel.updateFormName(it) },
-                    placeholder = "Nhap ten san pham",
+                    placeholder = "Nhập tên sản phẩm",
                     error = formState.nameError,
-                    singleLine = true
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = TextSilver
+                        )
+                    }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 FormDropdownSelector(
-                    label = "Loai san pham *",
+                    label = "Loại sản phẩm *",
                     items = formState.categories,
                     selectedItem = formState.categories.find { it.id == formState.categoryId },
                     onItemSelected = { viewModel.updateFormCategory(it.id) },
                     itemToString = { it.name },
                     itemToId = { it.id },
-                    placeholder = "Chon loai san pham",
+                    placeholder = "Chọn loại sản phẩm",
                     isRequired = true,
                     errorMessage = formState.categoryError
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 FormDropdownSelector(
-                    label = "Don vi tinh *",
+                    label = "Đơn vị tính *",
                     items = formState.units,
                     selectedItem = formState.units.find { it.id == formState.unitId },
                     onItemSelected = { viewModel.updateFormUnit(it.id) },
                     itemToString = { it.name },
                     itemToId = { it.id },
-                    placeholder = "Chon don vi tinh",
+                    placeholder = "Chọn đơn vị tính",
                     isRequired = true,
                     errorMessage = formState.unitError
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 FormDropdownSelector(
-                    label = "Nha cung cap *",
+                    label = "Nhà cung cấp *",
                     items = formState.suppliers,
                     selectedItem = formState.suppliers.find { it.id == formState.supplierId },
                     onItemSelected = { viewModel.updateFormSupplier(it.id) },
                     itemToString = { it.name },
                     itemToId = { it.id },
-                    placeholder = "Chon nha cung cap",
+                    placeholder = "Chọn nhà cung cấp",
                     isRequired = true,
                     errorMessage = formState.supplierError
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 Row(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     FormTextField(
-                        label = "Gia nhap (VND) *",
+                        label = "Giá nhập (VND) *",
                         value = formState.purchasePrice,
                         onValueChange = { viewModel.updateFormPurchasePrice(it) },
                         placeholder = "0",
@@ -182,10 +187,8 @@ fun ProductFormScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    Spacer(modifier = Modifier.weight(0.1f))
-
                     FormTextField(
-                        label = "Gia ban (VND) *",
+                        label = "Giá bán (VND) *",
                         value = formState.salePrice,
                         onValueChange = { viewModel.updateFormSalePrice(it) },
                         placeholder = "0",
@@ -204,7 +207,6 @@ fun ProductFormScreen(
                 }
 
                 formState.error?.let { error ->
-                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
@@ -212,7 +214,7 @@ fun ProductFormScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                HorizontalDivider(color = TextSilver.copy(alpha = 0.3f))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -228,13 +230,11 @@ fun ProductFormScreen(
                         )
                     )
                     Text(
-                        text = "Them hang loat",
+                        text = "Thêm hàng loạt",
                         color = TextSilver,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = { viewModel.saveProduct(onProductSaved) },
@@ -242,8 +242,11 @@ fun ProductFormScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     enabled = !formState.isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                    shape = RoundedCornerShape(500.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SpotifyGreen,
+                        disabledContainerColor = SpotifyGreen.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     if (formState.isLoading) {
                         CircularProgressIndicator(
@@ -253,7 +256,7 @@ fun ProductFormScreen(
                         )
                     } else {
                         Text(
-                            text = if (isEditMode) "Luu thay doi" else "Them san pham",
+                            text = if (isEditMode) "Lưu thay đổi" else "Lưu sản phẩm",
                             color = NearBlack,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold
@@ -261,17 +264,17 @@ fun ProductFormScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
 
         if (formState.showSuccessDialog) {
             SuccessDialog(
-                title = "Them san pham thanh cong",
+                title = if (isEditMode) "Cập nhật sản phẩm thành công" else "Thêm sản phẩm thành công",
                 message = if (formState.successDialogMessage.isNotEmpty()) {
                     formState.successDialogMessage
                 } else {
-                    "San pham \"${formState.name.trim()}\" da duoc them vao he thong."
+                    "Sản phẩm \"${formState.name.trim()}\" đã được lưu vào hệ thống."
                 },
                 onDismiss = {
                     viewModel.dismissSuccessDialog()
@@ -329,10 +332,11 @@ private fun FormTextField(
                 focusedBorderColor = SpotifyGreen,
                 unfocusedBorderColor = MidDark,
                 errorBorderColor = MaterialTheme.colorScheme.error,
-                focusedContainerColor = MidDark,
-                unfocusedContainerColor = MidDark,
+                focusedContainerColor = DarkCard,
+                unfocusedContainerColor = DarkCard,
                 cursorColor = SpotifyGreen
             ),
+            isError = error != null,
             shape = RoundedCornerShape(12.dp)
         )
 

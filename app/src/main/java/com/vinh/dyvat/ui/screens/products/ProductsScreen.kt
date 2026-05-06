@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,29 +20,38 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,15 +66,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vinh.dyvat.data.model.Category
+import com.vinh.dyvat.data.model.ProductStatus
 import com.vinh.dyvat.data.model.ProductWithDetails
 import com.vinh.dyvat.data.model.Supplier
 import com.vinh.dyvat.ui.components.ConfirmDialog
 import com.vinh.dyvat.ui.components.EmptyState
 import com.vinh.dyvat.ui.components.ErrorState
 import com.vinh.dyvat.ui.components.LoadingIndicator
+import com.vinh.dyvat.ui.components.StatusBadge
+import com.vinh.dyvat.ui.components.StatusType
 import com.vinh.dyvat.ui.theme.DarkCard
 import com.vinh.dyvat.ui.theme.DarkSurface
-import com.vinh.dyvat.ui.theme.LightBorder
 import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
@@ -74,10 +86,10 @@ import com.vinh.dyvat.ui.theme.TextWhite
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsScreen(
-    @Suppress("UNUSED_PARAMETER") onNavigateBack: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateToDetail: (String) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateToAdd: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") showBackButton: Boolean = true,
+    onNavigateBack: () -> Unit,
+    onNavigateToDetail: (String) -> Unit,
+    onNavigateToAdd: () -> Unit,
+    showBackButton: Boolean = true,
     refreshSignal: Boolean = false,
     onRefreshHandled: () -> Unit = {},
     viewModel: ProductsViewModel = hiltViewModel()
@@ -88,6 +100,9 @@ fun ProductsScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
     val listState = rememberLazyListState()
+    val hasAnyFilter = uiState.searchQuery.isNotBlank() ||
+        uiState.selectedCategoryId != null ||
+        uiState.selectedSupplierId != null
 
     LaunchedEffect(refreshSignal) {
         if (refreshSignal) {
@@ -102,12 +117,32 @@ fun ProductsScreen(
         }
     }
 
-    fun onRefresh() {
-        viewModel.loadProducts()
-    }
-
     Scaffold(
         containerColor = NearBlack,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "QUẢN LÝ SẢN PHẨM KINH DOANH",
+                        color = TextWhite,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    if (showBackButton) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Quay lại",
+                                tint = TextWhite
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToAdd,
@@ -115,7 +150,7 @@ fun ProductsScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Them san pham",
+                    contentDescription = "Thêm sản phẩm",
                     tint = NearBlack
                 )
             }
@@ -126,76 +161,44 @@ fun ProductsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Header
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(NearBlack)
-                    .padding(top = 16.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
-            ) {
-                Text(
-                    text = "QUẢN LÝ SẢN PHẨM KINH DOANH",
-                    color = TextWhite,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Search bar
-            SearchBar(
-                query = uiState.searchQuery,
-                onQueryChange = { viewModel.setSearchQuery(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Filter buttons row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(top = 8.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                FilterDropdownButton(
-                    label = "Lọc theo loại sản phẩm",
-                    selectedLabel = uiState.categories.find { it.id == uiState.selectedCategoryId }?.name,
-                    isActive = uiState.selectedCategoryId != null,
-                    onClick = { showCategorySheet = true },
-                    modifier = Modifier.weight(1f)
+                SearchTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = "Tìm kiếm sản phẩm..."
                 )
-                FilterDropdownButton(
-                    label = "Lọc theo nhà cung cấp",
-                    selectedLabel = uiState.suppliers.find { it.id == uiState.selectedSupplierId }?.name,
-                    isActive = uiState.selectedSupplierId != null,
-                    onClick = { showSupplierSheet = true },
-                    modifier = Modifier.weight(1f)
-                )
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterDropdownButton(
+                        label = "Lọc theo loại sản phẩm",
+                        selectedLabel = uiState.categories.find { it.id == uiState.selectedCategoryId }?.name,
+                        isActive = uiState.selectedCategoryId != null,
+                        onClick = { showCategorySheet = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterDropdownButton(
+                        label = "Lọc theo nhà cung cấp",
+                        selectedLabel = uiState.suppliers.find { it.id == uiState.selectedSupplierId }?.name,
+                        isActive = uiState.selectedSupplierId != null,
+                        onClick = { showSupplierSheet = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
-            // Sort button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Sắp xếp: ",
-                    color = TextSilver,
-                    style = MaterialTheme.typography.bodyMedium
-                )
                 Box {
-                    Text(
-                        text = "${uiState.sortOption.label} ▼",
-                        color = SpotifyGreen,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.clickable { showSortMenu = true }
+                    SortDropdownButton(
+                        currentSort = uiState.sortOption,
+                        onClick = { showSortMenu = true }
                     )
                     DropdownMenu(
                         expanded = showSortMenu,
@@ -218,91 +221,105 @@ fun ProductsScreen(
                         }
                     }
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Hiển thị sản phẩm ngừng kinh doanh",
+                        color = TextSilver,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(
+                        checked = uiState.showInactive,
+                        onCheckedChange = { viewModel.setShowInactive(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SpotifyGreen,
+                            checkedTrackColor = SpotifyGreen.copy(alpha = 0.5f),
+                            uncheckedThumbColor = TextSilver,
+                            uncheckedTrackColor = MidDark
+                        )
+                    )
+                }
+
+                if (uiState.selectedCategoryId != null || uiState.selectedSupplierId != null) {
+                    ActiveFiltersRow(
+                        categories = uiState.categories,
+                        suppliers = uiState.suppliers,
+                        selectedCategoryId = uiState.selectedCategoryId,
+                        selectedSupplierId = uiState.selectedSupplierId,
+                        onClearCategory = { viewModel.setCategoryFilter(null) },
+                        onClearSupplier = { viewModel.setSupplierFilter(null) }
+                    )
+                }
             }
 
-            // Toggle: show discontinued products
-            Row(
+            Text(
+                text = "Danh sách sản phẩm",
+                color = TextWhite,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .background(NearBlack)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+
+            PullToRefreshBox(
+                isRefreshing = uiState.isLoading,
+                onRefresh = { viewModel.loadProducts() },
+                state = pullToRefreshState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                Text(
-                    text = "Hien thi san pham ngung kinh doanh",
-                    color = TextSilver,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Switch(
-                    checked = uiState.showInactive,
-                    onCheckedChange = { viewModel.setShowInactive(it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = SpotifyGreen,
-                        checkedTrackColor = SpotifyGreen.copy(alpha = 0.5f),
-                        uncheckedThumbColor = TextSilver,
-                        uncheckedTrackColor = MidDark
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 88.dp
                     )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Active filter chips
-            if (uiState.selectedCategoryId != null || uiState.selectedSupplierId != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ActiveFiltersRow(
-                    categories = uiState.categories,
-                    suppliers = uiState.suppliers,
-                    selectedCategoryId = uiState.selectedCategoryId,
-                    selectedSupplierId = uiState.selectedSupplierId,
-                    onClearCategory = { viewModel.setCategoryFilter(null) },
-                    onClearSupplier = { viewModel.setSupplierFilter(null) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Content
-            when {
-                uiState.error != null && uiState.products.isEmpty() -> ErrorState(
-                    message = uiState.error ?: "",
-                    onRetry = { viewModel.loadProducts() }
-                )
-                uiState.isLoading -> LoadingIndicator()
-                uiState.filteredProducts.isEmpty() -> EmptyState(
-                    icon = Icons.Default.Inventory2,
-                    title = if (uiState.searchQuery.isNotEmpty() || uiState.selectedCategoryId != null || uiState.selectedSupplierId != null) {
-                        "Khong tim thay san pham"
-                    } else {
-                        "Chua co san pham nao"
-                    },
-                    subtitle = if (uiState.searchQuery.isEmpty() && uiState.selectedCategoryId == null && uiState.selectedSupplierId == null) {
-                        "Nhan + de them san pham moi"
-                    } else {
-                        "Thu thay doi tu khoa hoac bo loc"
-                    },
-                    actionText = if (uiState.searchQuery.isEmpty() && uiState.selectedCategoryId == null && uiState.selectedSupplierId == null) {
-                        "Them san pham"
-                    } else null,
-                    onAction = if (uiState.searchQuery.isEmpty() && uiState.selectedCategoryId == null && uiState.selectedSupplierId == null) {
-                        { onNavigateToAdd() }
-                    } else null
-                )
-                else -> {
-                    PullToRefreshBox(
-                        isRefreshing = uiState.isLoading,
-                        onRefresh = { onRefresh() },
-                        state = pullToRefreshState,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        LazyColumn(
-                            state = listState,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                horizontal = 16.dp,
-                                vertical = 8.dp
-                            )
-                        ) {
+                ) {
+                    when {
+                        uiState.isLoading -> {
+                            item {
+                                LoadingIndicator()
+                            }
+                        }
+                        uiState.error != null && uiState.products.isEmpty() -> {
+                            item {
+                                ErrorState(
+                                    message = uiState.error ?: "",
+                                    onRetry = { viewModel.loadProducts() }
+                                )
+                            }
+                        }
+                        uiState.filteredProducts.isEmpty() -> {
+                            item {
+                                EmptyState(
+                                    icon = Icons.Default.Inventory2,
+                                    title = if (hasAnyFilter) {
+                                        "Không tìm thấy sản phẩm"
+                                    } else {
+                                        "Chưa có sản phẩm nào"
+                                    },
+                                    subtitle = if (hasAnyFilter) {
+                                        "Thử thay đổi từ khóa hoặc bộ lọc"
+                                    } else {
+                                        "Nhấn + để thêm sản phẩm mới"
+                                    },
+                                    actionText = if (!hasAnyFilter) "Thêm sản phẩm" else null,
+                                    onAction = if (!hasAnyFilter) onNavigateToAdd else null
+                                )
+                            }
+                        }
+                        else -> {
                             items(
                                 items = uiState.filteredProducts,
                                 key = { it.product.id }
@@ -313,6 +330,7 @@ fun ProductsScreen(
                                     onResumeClick = { viewModel.requestResumeProduct(product.product.id) }
                                 )
                             }
+
                             if (uiState.hasMore) {
                                 item {
                                     TextButton(
@@ -321,16 +339,13 @@ fun ProductsScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
-                                            text = if (uiState.isLoadingMore) "Dang tai..." else "Tai them san pham",
+                                            text = if (uiState.isLoadingMore) "Đang tải..." else "Tải thêm sản phẩm",
                                             color = SpotifyGreen,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                 }
-                            }
-                            item {
-                                Spacer(modifier = Modifier.height(80.dp))
                             }
                         }
                     }
@@ -339,7 +354,6 @@ fun ProductsScreen(
         }
     }
 
-    // Category filter sheet
     if (showCategorySheet) {
         FilterSheet(
             title = "Lọc theo loại sản phẩm",
@@ -353,7 +367,6 @@ fun ProductsScreen(
         )
     }
 
-    // Supplier filter sheet
     if (showSupplierSheet) {
         FilterSheet(
             title = "Lọc theo nhà cung cấp",
@@ -367,7 +380,6 @@ fun ProductsScreen(
         )
     }
 
-    // Delete confirm dialog
     if (uiState.showDeleteConfirm && uiState.productToDelete != null) {
         ConfirmDialog(
             title = "Xác nhận xóa",
@@ -381,53 +393,51 @@ fun ProductsScreen(
         )
     }
 
-    // Resume confirm dialog
     if (uiState.showResumeConfirm && uiState.resumeProductId != null) {
-        val productName = uiState.products.find { it.product.id == uiState.resumeProductId }?.product?.name ?: "sản phẩm này"
+        val productName = uiState.products.find { it.product.id == uiState.resumeProductId }?.product?.name
+            ?: "sản phẩm này"
         ConfirmDialog(
             title = "Kích hoạt sản phẩm",
-            message = "San pham \"$productName\" se duoc hien thi tro lai trong danh sach kinh doanh.",
-            confirmText = "Kich hoat",
+            message = "Sản phẩm \"$productName\" sẽ được hiển thị trở lại trong danh sách kinh doanh.",
+            confirmText = "Kích hoạt",
             onDismiss = { viewModel.hideResumeConfirm() },
-            onConfirm = {
-                viewModel.confirmResumeProduct()
-            }
+            onConfirm = { viewModel.confirmResumeProduct() }
         )
     }
 }
 
 @Composable
-private fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+private fun SearchTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
 ) {
     OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
+        value = value,
+        onValueChange = onValueChange,
         placeholder = {
             Text(
-                text = "Tìm kiếm sản phẩm...",
-                color = TextSilver
+                text = placeholder,
+                color = TextSilver.copy(alpha = 0.6f)
             )
         },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Tìm kiếm",
+                contentDescription = null,
                 tint = TextSilver
             )
         },
-        modifier = modifier,
+        modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextWhite,
             unfocusedTextColor = TextWhite,
-            focusedContainerColor = MidDark,
-            unfocusedContainerColor = MidDark,
-            cursorColor = SpotifyGreen,
             focusedBorderColor = SpotifyGreen,
-            unfocusedBorderColor = MidDark
+            unfocusedBorderColor = MidDark,
+            focusedContainerColor = DarkCard,
+            unfocusedContainerColor = DarkCard,
+            cursorColor = SpotifyGreen
         ),
         shape = RoundedCornerShape(12.dp)
     )
@@ -443,16 +453,26 @@ private fun FilterDropdownButton(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isActive) SpotifyGreen.copy(alpha = 0.15f) else MidDark)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isActive) SpotifyGreen.copy(alpha = 0.15f) else DarkCard)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.FilterList,
+                contentDescription = null,
+                tint = if (isActive) SpotifyGreen else TextSilver,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (selectedLabel != null) selectedLabel else label,
+                text = selectedLabel ?: label,
                 color = if (isActive) SpotifyGreen else TextSilver,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1
@@ -468,6 +488,33 @@ private fun FilterDropdownButton(
 }
 
 @Composable
+private fun SortDropdownButton(
+    currentSort: SortOption,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(DarkCard)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Sắp xếp: ${currentSort.label}",
+            color = TextSilver,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "v",
+            color = TextSilver,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
 private fun ActiveFiltersRow(
     categories: List<Category>,
     suppliers: List<Supplier>,
@@ -477,20 +524,18 @@ private fun ActiveFiltersRow(
     onClearSupplier: () -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         selectedCategoryId?.let { id ->
-            val cat = categories.find { it.id == id }
+            val category = categories.find { it.id == id }
             FilterChip(
                 selected = true,
                 onClick = onClearCategory,
-                label = { Text(cat?.name ?: "Loại") },
+                label = { Text(category?.name ?: "Loại sản phẩm") },
                 trailingIcon = {
                     Text(
-                        text = "\u2715",
+                        text = "x",
                         color = TextWhite,
                         modifier = Modifier.padding(start = 4.dp)
                     )
@@ -501,15 +546,16 @@ private fun ActiveFiltersRow(
                 )
             )
         }
+
         selectedSupplierId?.let { id ->
-            val sup = suppliers.find { it.id == id }
+            val supplier = suppliers.find { it.id == id }
             FilterChip(
                 selected = true,
                 onClick = onClearSupplier,
-                label = { Text(sup?.name ?: "NCC") },
+                label = { Text(supplier?.name ?: "Nhà cung cấp") },
                 trailingIcon = {
                     Text(
-                        text = "\u2715",
+                        text = "x",
                         color = TextWhite,
                         modifier = Modifier.padding(start = 4.dp)
                     )
@@ -532,9 +578,9 @@ private fun FilterSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    androidx.compose.material3.ModalBottomSheet(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = DarkCard,
@@ -554,7 +600,6 @@ private fun FilterSheet(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // All option
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -572,9 +617,7 @@ private fun FilterSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(items) { (id, name) ->
                     FilterChip(
                         selected = id == selectedId,
@@ -610,67 +653,86 @@ private fun ProductCard(
     onClick: () -> Unit,
     onResumeClick: (() -> Unit)? = null
 ) {
-    val isDiscontinued = product.product.status == com.vinh.dyvat.data.model.ProductStatus.DISCONTINUED
+    val isDiscontinued = product.product.status == ProductStatus.DISCONTINUED
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isDiscontinued) MidDark.copy(alpha = 0.5f) else DarkSurface)
-            .clickable(onClick = onClick)
-            .padding(16.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDiscontinued) DarkCard.copy(alpha = 0.6f) else DarkSurface
+        ),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            if (isDiscontinued) {
-                Text(
-                    text = "NGUNG KINH DOANH",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Mã sản phẩm: ${product.product.code.ifEmpty { "-" }}",
+                        color = TextSilver,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Tên sản phẩm: ${product.product.name}",
+                        color = if (isDiscontinued) TextSilver else TextWhite,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (isDiscontinued) {
+                    StatusBadge(
+                        label = "Ngừng kinh doanh",
+                        type = StatusType.WARNING
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Text(
-                text = "Ma san pham: ${product.product.code.ifEmpty { "—" }}",
+                text = "Loại sản phẩm: ${product.categoryName.ifEmpty { "-" }}",
                 color = TextSilver,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
+
             Spacer(modifier = Modifier.height(4.dp))
+
             Text(
-                text = product.product.name,
-                color = TextWhite,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Loai san pham: ${product.categoryName.ifEmpty { "—" }}",
+                text = "Nhà cung cấp: ${product.supplierName.ifEmpty { "-" }}",
                 color = TextSilver,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Nha cung cap: ${product.supplierName.ifEmpty { "—" }}",
-                color = TextSilver,
-                style = MaterialTheme.typography.bodySmall
-            )
+
             if (isDiscontinued && onResumeClick != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.material3.OutlinedButton(
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
                     onClick = onResumeClick,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                        contentColor = SpotifyGreen
-                    )
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
+                        tint = SpotifyGreen,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Kinh doanh lai", fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Kinh doanh lại",
+                        color = SpotifyGreen,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }

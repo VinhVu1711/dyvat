@@ -240,6 +240,17 @@ fun PurchaseListScreen(
                 }
             }
 
+            Text(
+                text = "Danh sách phiếu nhập hàng",
+                color = TextWhite,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(NearBlack)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+
             PullToRefreshBox(
                 isRefreshing = uiState.isLoading,
                 onRefresh = { viewModel.loadTickets() },
@@ -260,12 +271,14 @@ fun PurchaseListScreen(
                     )
                 ) {
                     item {
-                        Text(
+                        if (false) {
+                            Text(
                             text = "Danh sách phiếu nhập hàng",
                             color = TextWhite,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
-                        )
+                            )
+                        }
                     }
 
                     when {

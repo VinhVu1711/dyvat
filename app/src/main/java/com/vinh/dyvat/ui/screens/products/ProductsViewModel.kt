@@ -457,7 +457,7 @@ class ProductsViewModel @Inject constructor(
                 }
                 is Result.Error -> _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = "Xoa san pham that bai"
+                    error = "Xóa sản phẩm thất bại"
                 )
                 is Result.Loading -> {}
             }
@@ -582,7 +582,7 @@ class ProductsViewModel @Inject constructor(
                 }
                 is Result.Error -> _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = "Khoi phuc san pham that bai"
+                    error = "Khôi phục sản phẩm thất bại"
                 )
                 is Result.Loading -> {}
             }
@@ -791,27 +791,27 @@ class ProductsViewModel @Inject constructor(
         var hasError = false
 
         if (state.name.isBlank()) {
-            _formUiState.value = _formUiState.value.copy(nameError = "Ten san pham khong duoc de trong")
+            _formUiState.value = _formUiState.value.copy(nameError = "Tên sản phẩm không được để trống")
             hasError = true
         }
         if (state.categoryId.isBlank()) {
-            _formUiState.value = _formUiState.value.copy(categoryError = "Vui long chon loai san pham")
+            _formUiState.value = _formUiState.value.copy(categoryError = "Vui lòng chọn loại sản phẩm")
             hasError = true
         }
         if (state.unitId.isBlank()) {
-            _formUiState.value = _formUiState.value.copy(unitError = "Vui long chon don vi tinh")
+            _formUiState.value = _formUiState.value.copy(unitError = "Vui lòng chọn đơn vị tính")
             hasError = true
         }
         if (state.supplierId.isBlank()) {
-            _formUiState.value = _formUiState.value.copy(supplierError = "Vui long chon nha cung cap")
+            _formUiState.value = _formUiState.value.copy(supplierError = "Vui lòng chọn nhà cung cấp")
             hasError = true
         }
         if (state.purchasePrice.isBlank() || state.purchasePrice.toLongOrNull() == null || state.purchasePrice.toLong() < 0) {
-            _formUiState.value = _formUiState.value.copy(purchasePriceError = "Gia nhap khong hop le")
+            _formUiState.value = _formUiState.value.copy(purchasePriceError = "Giá nhập không hợp lệ")
             hasError = true
         }
         if (state.salePrice.isBlank() || state.salePrice.toLongOrNull() == null || state.salePrice.toLong() < 0) {
-            _formUiState.value = _formUiState.value.copy(salePriceError = "Gia ban khong hop le")
+            _formUiState.value = _formUiState.value.copy(salePriceError = "Giá bán không hợp lệ")
             hasError = true
         }
 
@@ -826,8 +826,8 @@ class ProductsViewModel @Inject constructor(
         if (salePrice < purchasePrice) {
             _formUiState.value = _formUiState.value.copy(
                 showErrorDialog = true,
-                errorDialogTitle = "Gia khong hop le",
-                errorDialogMessage = "Gia ban phai lon hon hoac bang gia nhap. Vui long kiem tra lai gia ban."
+                errorDialogTitle = "Giá không hợp lệ",
+                errorDialogMessage = "Giá bán phải lớn hơn hoặc bằng giá nhập. Vui lòng kiểm tra lại giá bán."
             )
             return
         }
@@ -841,8 +841,8 @@ class ProductsViewModel @Inject constructor(
         if (isDuplicate) {
             _formUiState.value = _formUiState.value.copy(
                 showErrorDialog = true,
-                errorDialogTitle = "San pham da ton tai",
-                errorDialogMessage = "San pham \"${state.name.trim()}\" da co trong he thong. Vui long nhap ten khac hoac chinh sua san pham cu."
+                errorDialogTitle = "Sản phẩm đã tồn tại",
+                errorDialogMessage = "Sản phẩm \"${state.name.trim()}\" đã có trong hệ thống. Vui lòng nhập tên khác hoặc chỉnh sửa sản phẩm cũ."
             )
             return
         }
@@ -882,7 +882,7 @@ class ProductsViewModel @Inject constructor(
                     } else {
                         _formUiState.value = _formUiState.value.copy(
                             showSuccessDialog = true,
-                            successDialogMessage = "Da them san pham \"${state.name.trim()}\"!"
+                            successDialogMessage = "Đã thêm sản phẩm \"${state.name.trim()}\"!"
                         )
                         resetForm()
                     }
@@ -892,7 +892,7 @@ class ProductsViewModel @Inject constructor(
                         isLoading = false,
                         showErrorDialog = true,
                         errorDialogTitle = "Lỗi khi lưu sản phẩm",
-                        errorDialogMessage = "Không thể lưu sản phẩm. Vui long kiem tra lai thong tin va thu lai."
+                        errorDialogMessage = "Không thể lưu sản phẩm. Vui lòng kiểm tra lại thông tin và thử lại."
                     )
                 }
                 is Result.Loading -> {}

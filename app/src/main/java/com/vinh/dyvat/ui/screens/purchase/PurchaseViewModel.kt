@@ -27,10 +27,14 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Locale
 import javax.inject.Inject
 
 private const val TAG = "PurchaseViewModel"
+private val PURCHASE_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
 data class PurchaseListUiState(
     val tickets: List<PurchaseTicketCardUi> = emptyList(),
@@ -62,6 +66,7 @@ data class PurchaseFormUiState(
     val items: List<PurchaseItemDraftUi> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
+    val purchaseDateError: String? = null,
     val validationErrors: Map<Int, String> = emptyMap(),
     val availableProducts: List<ProductWithDetails> = emptyList(),
     val suppliers: List<Supplier> = emptyList(),
@@ -634,6 +639,12 @@ class PurchaseViewModel @Inject constructor(
             return
         }
 
+        val purchaseDateError = validatePurchaseDate(state.purchaseDate)
+        if (purchaseDateError != null) {
+            _formState.value = state.copy(purchaseDateError = purchaseDateError)
+            return
+        }
+
         // Guard: check empty items
         if (state.items.isEmpty()) {
             _formState.value = state.copy(error = "Phải có ít nhất 1 sản phẩm")
@@ -774,7 +785,16 @@ class PurchaseViewModel @Inject constructor(
     }
 
     fun updatePurchaseDate(date: String) {
-        _formState.value = _formState.value.copy(purchaseDate = date)
+        _formState.value = _formState.value.copy(
+            purchaseDate = date,
+            purchaseDateError = validatePurchaseDate(date)
+        )
+    }
+
+    fun validatePurchaseDateForSave(): Boolean {
+        val error = validatePurchaseDate(_formState.value.purchaseDate)
+        _formState.value = _formState.value.copy(purchaseDateError = error)
+        return error == null
     }
 
     fun clearFormError() {
@@ -783,5 +803,19 @@ class PurchaseViewModel @Inject constructor(
 
     fun clearError() {
         _listState.value = _listState.value.copy(error = null)
+    }
+
+    private fun validatePurchaseDate(date: String): String? {
+        if (date.isBlank()) return "Ngày nhập hàng là bắt buộc"
+        return try {
+            val purchaseDate = LocalDate.parse(date, PURCHASE_DATE_FORMATTER)
+            if (purchaseDate.isAfter(LocalDate.now())) {
+                "Ngày nhập hàng không được lớn hơn ngày hiện tại"
+            } else {
+                null
+            }
+        } catch (_: DateTimeParseException) {
+            "Ngày nhập hàng không hợp lệ"
+        }
     }
 }

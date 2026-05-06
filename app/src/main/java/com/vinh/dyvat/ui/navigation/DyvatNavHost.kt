@@ -72,6 +72,12 @@ fun DyvatNavHost(
             HomeScreen(
                 onNavigate = { route ->
                     navController.navigate(route)
+                },
+                onSignedOut = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }

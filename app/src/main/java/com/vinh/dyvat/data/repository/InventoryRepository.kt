@@ -15,6 +15,18 @@ import javax.inject.Singleton
 class InventoryRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
 ) {
+    suspend fun getLotCardByTicketId(ticketId: String): Result<InventoryLotCard?> {
+        return try {
+            val cards = supabaseClient.postgrest[SupabaseViews.V_INVENTORY_LOT_CARDS]
+                .select { filter { eq("purchase_ticket_id", ticketId) } }
+                .decodeList<InventoryLotCard>()
+
+            Result.Success(cards.firstOrNull())
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Lỗi khi tải thông tin lô", e)
+        }
+    }
+
     fun getLotCards(
         startDate: String? = null,
         endDate: String? = null,
@@ -26,7 +38,18 @@ class InventoryRepository @Inject constructor(
                 .select()
                 .decodeList<InventoryLotCard>()
 
-            var filtered = all
+            val nearestExpiryByLotKey = supabaseClient.postgrest[SupabaseViews.V_INVENTORY_LOT_DETAILS]
+                .select()
+                .decodeList<InventoryLotDetail>()
+                .filter { it.quantityRemaining > 0 && !it.expiryDate.isNullOrBlank() }
+                .groupBy { it.lotKey() }
+                .mapValues { (_, details) ->
+                    details.mapNotNull { it.expiryDate?.toDateOnlyOrNull() }.minOrNull()
+                }
+
+            var filtered = all.map { lot ->
+                lot.copy(nearestExpiryDate = nearestExpiryByLotKey[lot.lotKey()])
+            }
 
             if (startDate != null) {
                 filtered = filtered.filter { it.purchaseDate >= startDate }
@@ -58,4 +81,16 @@ class InventoryRepository @Inject constructor(
             emit(Result.Error(e.message ?: "Lỗi khi tải chi tiết lô", e))
         }
     }
+}
+
+private fun String.toDateOnlyOrNull(): String? {
+    return split("T").firstOrNull()?.takeIf { it.isNotBlank() }
+}
+
+private fun InventoryLotDetail.lotKey(): String {
+    return purchaseTicketId.ifBlank { lotCode }
+}
+
+private fun InventoryLotCard.lotKey(): String {
+    return purchaseTicketId.ifBlank { lotCode }
 }

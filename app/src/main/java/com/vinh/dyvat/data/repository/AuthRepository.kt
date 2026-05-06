@@ -32,6 +32,8 @@ class AuthRepository @Inject constructor(
                 this.nonce = rawNonce
             }
             Log.d(tag, "signInWith completed. Getting current session...")
+            val session = supabaseClient.auth.currentSessionOrNull()
+            Log.d(tag, "Session after sign-in: ${if (session != null) "available" else "missing"}")
             val user = supabaseClient.auth.retrieveUserForCurrentSession()
             Log.d(tag, "User retrieved: ${user.id}")
             emit(Result.Success(user))
@@ -44,24 +46,53 @@ class AuthRepository @Inject constructor(
 
     fun getCurrentSession(): Flow<Result<UserInfo?>> = flow {
         emit(Result.Loading)
+        Log.d(tag, "=== Restore Session Started ===")
         try {
-            val session = supabaseClient.auth.currentSessionOrNull()
+            Log.d(tag, "Waiting for Supabase Auth initialization...")
+            supabaseClient.auth.awaitInitialization()
+
+            var session = supabaseClient.auth.currentSessionOrNull()
+            Log.d(tag, "Session after initialization: ${if (session != null) "available" else "missing"}")
+
+            if (session == null) {
+                Log.d(tag, "No in-memory session. Loading session from storage...")
+                val loadedFromStorage = supabaseClient.auth.loadFromStorage()
+                Log.d(tag, "loadFromStorage result: $loadedFromStorage")
+                session = supabaseClient.auth.currentSessionOrNull()
+                Log.d(tag, "Session after storage load: ${if (session != null) "available" else "missing"}")
+            }
+
             if (session != null) {
+                Log.d(tag, "Refreshing current session before retrieving user...")
+                runCatching {
+                    supabaseClient.auth.refreshCurrentSession()
+                }.onSuccess {
+                    Log.d(tag, "Session refresh completed")
+                }.onFailure { refreshError ->
+                    Log.w(tag, "Session refresh failed, will try current session user: ${refreshError::class.simpleName}: ${refreshError.message}")
+                }
+
                 val user = supabaseClient.auth.retrieveUserForCurrentSession()
+                Log.d(tag, "Restored user: ${user.id}")
                 emit(Result.Success(user))
             } else {
+                Log.d(tag, "No persisted session found. User is not logged in.")
                 emit(Result.Success(null))
             }
         } catch (e: Exception) {
-            emit(Result.Success(null))
+            Log.e(tag, "Restore session failed: ${e::class.simpleName}: ${e.message}", e)
+            emit(Result.Error(e.message ?: "Khoi phuc phien dang nhap that bai", e))
         }
     }
 
     suspend fun signOut(): Result<Unit> {
         return try {
+            Log.d(tag, "Signing out...")
             supabaseClient.auth.signOut()
+            Log.d(tag, "Sign out completed")
             Result.Success(Unit)
         } catch (e: Exception) {
+            Log.e(tag, "Sign out failed: ${e::class.simpleName}: ${e.message}", e)
             Result.Error(e.message ?: "Dang xuat that bai", e)
         }
     }

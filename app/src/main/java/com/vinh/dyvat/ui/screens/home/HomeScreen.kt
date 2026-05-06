@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Category
@@ -26,10 +27,14 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,8 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.vinh.dyvat.ui.components.DyvatTopBar
 import com.vinh.dyvat.ui.navigation.Screen
+import com.vinh.dyvat.ui.screens.auth.AuthState
+import com.vinh.dyvat.ui.screens.auth.AuthViewModel
 import com.vinh.dyvat.ui.theme.DarkSurface
 import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
@@ -106,12 +114,33 @@ private val homeModules = listOf(
 
 @Composable
 fun HomeScreen(
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onSignedOut: () -> Unit = {},
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
+    val authUiState by authViewModel.uiState.collectAsState()
+
+    LaunchedEffect(authUiState.authState) {
+        if (authUiState.authState is AuthState.NotLoggedIn) {
+            onSignedOut()
+        }
+    }
+
     Scaffold(
         containerColor = NearBlack,
         topBar = {
-            DyvatTopBar(title = "Dyvat")
+            DyvatTopBar(
+                title = "Dyvat",
+                actions = {
+                    IconButton(onClick = { authViewModel.signOut() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = "Đăng xuất",
+                            tint = TextWhite
+                        )
+                    }
+                }
+            )
         }
     ) { innerPadding ->
         LazyVerticalGrid(

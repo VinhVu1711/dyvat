@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -272,6 +273,14 @@ fun PurchaseFormScreen(
                         date = formState.purchaseDate,
                         onClick = { showDatePicker = true }
                     )
+                    formState.purchaseDateError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -377,7 +386,11 @@ fun PurchaseFormScreen(
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SaveButton(
-                    onClick = { showSaveConfirmDialog = true },
+                    onClick = {
+                        if (viewModel.validatePurchaseDateForSave()) {
+                            showSaveConfirmDialog = true
+                        }
+                    },
                     isEnabled = !formState.isSaving && formState.items.isNotEmpty(),
                     isLoading = formState.isSaving
                 )
@@ -394,6 +407,11 @@ fun PurchaseFormScreen(
                     ?: System.currentTimeMillis()
             } catch (_: Exception) {
                 System.currentTimeMillis()
+            },
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    return utcTimeMillis <= System.currentTimeMillis()
+                }
             }
         )
 

@@ -28,11 +28,15 @@ data class InventoryLotCard(
     @SerialName("total_inventory_value_vnd")
     val totalInventoryValueVnd: Long = 0L,
     @SerialName("total_remaining_quantity")
-    val totalRemainingQuantity: Int = 0
+    val totalRemainingQuantity: Int = 0,
+    @SerialName("nearest_expiry_date")
+    val nearestExpiryDate: String? = null
 )
 
 @Serializable
 data class InventoryLotDetail(
+    @SerialName("purchase_ticket_id")
+    val purchaseTicketId: String = "",
     @SerialName("purchase_item_id")
     val purchaseItemId: String = "",
     @SerialName("lot_code")
