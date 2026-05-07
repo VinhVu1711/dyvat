@@ -328,6 +328,18 @@ class ProductRepository @Inject constructor(
         }
     }
 
+    suspend fun getActiveProductCountsByCategory(): Result<Map<String, Int>> {
+        return try {
+            val products = supabaseClient.postgrest[SupabaseTables.PRODUCTS]
+                .select { filter { eq("status", "active") } }
+                .decodeList<Product>()
+            Result.Success(products.groupingBy { it.categoryId }.eachCount())
+        } catch (e: Exception) {
+            Log.e("ProductRepository", "getActiveProductCountsByCategory: error - ${e.message}", e)
+            Result.Error(e.message ?: "Lỗi khi tải số sản phẩm theo loại", e)
+        }
+    }
+
     suspend fun delete(id: String): Result<Unit> {
         return try {
             supabaseClient.postgrest[SupabaseTables.PRODUCTS]

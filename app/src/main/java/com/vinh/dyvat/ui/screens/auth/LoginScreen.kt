@@ -24,9 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,8 +55,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
 
 @Composable
 fun LoginScreen(
@@ -62,6 +64,9 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var credentialLoading by remember { mutableStateOf(false) }
+    var localErrorMessage by remember { mutableStateOf<String?>(null) }
+    val isSigningIn = credentialLoading || uiState.isLoading
 
     LaunchedEffect(uiState.authState) {
         if (uiState.authState is AuthState.LoggedIn) {
@@ -73,6 +78,13 @@ fun LoginScreen(
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(localErrorMessage) {
+        localErrorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            localErrorMessage = null
         }
     }
 
@@ -112,7 +124,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Quan ly nhap & ban hang",
+                    text = "Quản lý nhập và bán hàng",
                     color = TextSilver,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center
@@ -122,36 +134,49 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
+                        credentialLoading = true
                         val rawNonce = generateNonce()
                         performGoogleSignIn(
                             context = context,
                             rawNonce = rawNonce,
                             onIdTokenReceived = { idToken ->
+                                credentialLoading = false
                                 viewModel.signInWithGoogle(idToken, rawNonce)
                             },
                             onError = { errorMessage ->
+                                credentialLoading = false
                                 Log.e("LoginScreen", "Google Sign-In error: $errorMessage")
+                                localErrorMessage = errorMessage
                             }
                         )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
-                    enabled = !uiState.isLoading,
+                        .height(56.dp)
+                        .alpha(if (isSigningIn) 0.72f else 1f)
+                        .blur(if (isSigningIn) 0.35.dp else 0.dp),
+                    enabled = !isSigningIn,
                     shape = RoundedCornerShape(28.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = SpotifyGreen,
                         contentColor = NearBlack
                     )
                 ) {
-                    if (uiState.isLoading) {
+                    if (isSigningIn) {
                         CircularProgressIndicator(
                             color = NearBlack,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
+                        Text(
+                            text = "Đang đăng nhập...",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     } else {
                         Text(
-                            text = "Dang nhap bang Google",
+                            text = "Đăng nhập bằng Google",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -161,7 +186,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Dang nhap de truy cap ung dung",
+                    text = "Đăng nhập để truy cập ứng dụng",
                     color = TextSilver,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -188,7 +213,7 @@ private fun performGoogleSignIn(
         CredentialManager.create(context)
     } catch (e: Exception) {
         Log.e(tag, "CredentialManager.create() failed: ${e.message}")
-        onError("Khong the khoi tao CredentialManager: ${e.message}")
+        onError("Không thể khởi tạo CredentialManager: ${e.message}")
         return
     }
     Log.d(tag, "CredentialManager created successfully")
@@ -256,7 +281,7 @@ private fun performGoogleSignIn(
                 }
                 is GetCredentialCancellationException -> {
                     Log.w(tag, "Sign-in was cancelled by user")
-                    onError("Dang nhap bi huy")
+                    onError("Đăng nhập bị hủy")
                 }
                 else -> {
                     Log.e(tag, "Unhandled GetCredentialException type")
@@ -265,10 +290,10 @@ private fun performGoogleSignIn(
             }
         } catch (e: GoogleIdTokenParsingException) {
             Log.e(tag, "GoogleIdTokenParsingException: ${e.message}")
-            onError("Token khong hop le")
+            onError("Token không hợp lệ")
         } catch (e: Exception) {
             Log.e(tag, "Unexpected exception: ${e::class.simpleName}: ${e.message}")
-            onError(e.message ?: "Loi khong xac dinh")
+            onError(e.message ?: "Lỗi không xác định")
         }
     }
 }
@@ -293,13 +318,13 @@ private fun getErrorMessage(e: GetCredentialException): String {
     Log.e(tag, "Error details — message: '${e.message}', $typeExtra")
     return when {
         e.message?.contains("DEVELOPER_ERROR", ignoreCase = true) == true ->
-            "Loi cau hinh Google. Vui long kiem tra SHA-1 va OAuth Client ID."
+            "Lỗi cấu hình Google. Vui lòng kiểm tra SHA-1 và OAuth Client ID."
         e.message?.contains("network", ignoreCase = true) == true ->
-            "Loi mang. Vui long kiem tra ket noi internet."
+            "Lỗi mạng. Vui lòng kiểm tra kết nối internet."
         e.message?.contains("SIGN_IN_FAILED", ignoreCase = true) == true ->
-            "Dang nhap Google that bai. Kiem tra SHA-1 va Client ID."
+            "Đăng nhập Google thất bại. Kiểm tra SHA-1 và Client ID."
         e.message?.contains("invalid_client", ignoreCase = true) == true ->
-            "OAuth Client ID khong hop le."
-        else -> e.message ?: "Loi dang nhap Google"
+            "OAuth Client ID không hợp lệ."
+        else -> e.message ?: "Lỗi đăng nhập Google"
     }
 }

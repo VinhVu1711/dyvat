@@ -725,6 +725,62 @@ full outer join sale_daily s
     on s.owner_id = p.owner_id
    and s.business_date = p.business_date;
 
+create or replace view public.v_purchase_export_details
+with (security_invoker = true)
+as
+select
+    pt.owner_id,
+    pt.purchase_date,
+    pt.code as ticket_code,
+    p.name as product_name,
+    s.name as supplier_name,
+    u.name as unit_name,
+    pi.quantity_purchased,
+    pi.purchase_price_vnd,
+    pi.line_total_vnd
+from public.purchase_tickets pt
+join public.purchase_items pi
+    on pi.owner_id = pt.owner_id
+   and pi.purchase_ticket_id = pt.id
+join public.products p
+    on p.owner_id = pi.owner_id
+   and p.id = pi.product_id
+join public.suppliers s
+    on s.owner_id = pi.owner_id
+   and s.id = pi.supplier_id
+join public.units u
+    on u.owner_id = pi.owner_id
+   and u.id = pi.unit_id
+where pt.status = 'active'
+order by pt.purchase_date desc, pt.code, p.name;
+
+create or replace view public.v_sale_export_details
+with (security_invoker = true)
+as
+select
+    st.owner_id,
+    st.sale_date,
+    st.code as ticket_code,
+    p.name as product_name,
+    u.name as unit_name,
+    si.quantity_sold,
+    si.sale_price_vnd,
+    si.line_revenue_vnd,
+    si.line_cost_vnd,
+    (si.line_revenue_vnd - si.line_cost_vnd)::bigint as profit_vnd
+from public.sale_tickets st
+join public.sale_items si
+    on si.owner_id = st.owner_id
+   and si.sale_ticket_id = st.id
+join public.products p
+    on p.owner_id = si.owner_id
+   and p.id = si.product_id
+join public.units u
+    on u.owner_id = si.owner_id
+   and u.id = si.unit_id
+where st.status = 'active'
+order by st.sale_date desc, st.code, p.name;
+
 -- =========================================================
 -- 11. RLS POLICIES
 -- Supabase recommends RLS for protecting data at database level.
@@ -824,5 +880,7 @@ grant select on
     public.v_sale_ticket_cards,
     public.v_inventory_lot_cards,
     public.v_inventory_lot_details,
-    public.v_daily_business_summary
+    public.v_daily_business_summary,
+    public.v_purchase_export_details,
+    public.v_sale_export_details
 to authenticated;

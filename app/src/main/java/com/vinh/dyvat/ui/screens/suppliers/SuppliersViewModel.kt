@@ -9,16 +9,31 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SuppliersUiState(
     val suppliers: List<Supplier> = emptyList(),
+    val searchQuery: String = "",
+    val showInactive: Boolean = false,
     val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
     val error: String? = null,
     val showAddDialog: Boolean = false,
-    val editingSupplier: Supplier? = null
-)
+    val editingSupplier: Supplier? = null,
+    val supplierToDeactivate: Supplier? = null
+) {
+    val visibleSuppliers: List<Supplier>
+        get() = suppliers
+            .filter { it.isActive != showInactive }
+            .filter {
+                val query = searchQuery.trim()
+                query.isBlank() ||
+                    it.name.contains(query, ignoreCase = true) ||
+                    it.phone.orEmpty().contains(query, ignoreCase = true)
+            }
+}
 
 @HiltViewModel
 class SuppliersViewModel @Inject constructor(
@@ -34,21 +49,26 @@ class SuppliersViewModel @Inject constructor(
 
     fun loadSuppliers() {
         viewModelScope.launch {
-            repository.getAll().collect { result ->
-                _uiState.value = when (result) {
-                    is Result.Loading -> _uiState.value.copy(isLoading = true, error = null)
-                    is Result.Success -> _uiState.value.copy(
-                        isLoading = false,
-                        suppliers = result.data,
-                        error = null
-                    )
-                    is Result.Error -> _uiState.value.copy(
-                        isLoading = false,
-                        error = result.message
-                    )
+            repository.getAll(activeOnly = false).collect { result ->
+                when (result) {
+                    is Result.Loading -> _uiState.update { it.copy(isLoading = true, error = null) }
+                    is Result.Success -> _uiState.update {
+                        it.copy(isLoading = false, suppliers = result.data, error = null)
+                    }
+                    is Result.Error -> _uiState.update {
+                        it.copy(isLoading = false, error = result.message)
+                    }
                 }
             }
         }
+    }
+
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
+    fun setShowInactive(showInactive: Boolean) {
+        _uiState.update { it.copy(showInactive = showInactive) }
     }
 
     fun showAddDialog() {
@@ -60,23 +80,32 @@ class SuppliersViewModel @Inject constructor(
     }
 
     fun hideDialog() {
-        _uiState.value = _uiState.value.copy(showAddDialog = false, editingSupplier = null)
+        _uiState.update { it.copy(showAddDialog = false, editingSupplier = null) }
+    }
+
+    fun showDeactivateDialog(supplier: Supplier) {
+        _uiState.update { it.copy(supplierToDeactivate = supplier) }
+    }
+
+    fun hideDeactivateDialog() {
+        _uiState.update { it.copy(supplierToDeactivate = null) }
     }
 
     fun addSupplier(name: String, phone: String?) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isSaving = true) }
             val result = repository.insert(name, phone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
+                    _uiState.update { it.copy(isSaving = false) }
                     loadSuppliers()
                 }
                 is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
+                    _uiState.update { it.copy(
+                        isSaving = false,
                         error = result.message
-                    )
+                    ) }
                 }
                 is Result.Loading -> {}
             }
@@ -85,42 +114,56 @@ class SuppliersViewModel @Inject constructor(
 
     fun updateSupplier(id: String, name: String, phone: String?) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isSaving = true) }
             val result = repository.update(id, name, phone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
+                    _uiState.update { it.copy(isSaving = false) }
                     loadSuppliers()
                 }
                 is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
+                    _uiState.update { it.copy(
+                        isSaving = false,
                         error = result.message
-                    )
+                    ) }
                 }
                 is Result.Loading -> {}
             }
         }
     }
 
-    fun deleteSupplier(id: String) {
+    fun deactivateSupplier(id: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val result = repository.delete(id)
+            _uiState.update { it.copy(isSaving = true) }
+            val result = repository.setActive(id, false)
             when (result) {
-                is Result.Success -> loadSuppliers()
-                is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = result.message
-                    )
+                is Result.Success -> {
+                    hideDeactivateDialog()
+                    _uiState.update { it.copy(isSaving = false) }
+                    loadSuppliers()
                 }
+                is Result.Error -> _uiState.update { it.copy(isSaving = false, error = result.message) }
+                is Result.Loading -> {}
+            }
+        }
+    }
+
+    fun restoreSupplier(id: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            when (val result = repository.setActive(id, true)) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(isSaving = false, showInactive = false) }
+                    loadSuppliers()
+                }
+                is Result.Error -> _uiState.update { it.copy(isSaving = false, error = result.message) }
                 is Result.Loading -> {}
             }
         }
     }
 
     fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+        _uiState.update { it.copy(error = null) }
     }
 }

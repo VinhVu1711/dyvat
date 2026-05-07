@@ -49,7 +49,7 @@ fun DyvatSearchBar(
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Tim kiem",
+                contentDescription = "Tìm kiếm",
                 tint = TextSilver,
                 modifier = Modifier.size(20.dp)
             )
@@ -89,7 +89,7 @@ fun DyvatSearchBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Clear,
-                        contentDescription = "Xoa",
+                        contentDescription = "Xóa",
                         tint = TextSilver,
                         modifier = Modifier.size(18.dp)
                     )

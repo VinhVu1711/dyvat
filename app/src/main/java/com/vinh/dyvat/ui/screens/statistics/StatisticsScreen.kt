@@ -64,6 +64,7 @@ fun StatisticsScreen(
         ) {
             item { PeriodModeTabs(mode = state.mode, onModeChange = { viewModel.setMode(it) }) }
             item { PeriodNavigator(state = state, onPrevious = { viewModel.previousPeriod() }, onNext = { viewModel.nextPeriod() }) }
+            item { StatisticsExportControls(state = state, viewModel = viewModel) }
 
             when {
                 state.isLoading -> item { LoadingIndicator() }
@@ -95,8 +96,7 @@ fun StatisticsScreen(
                             bar1Color = WarningOrange,
                             bar2Color = SpotifyGreen,
                             bar1Label = "Nhập",
-                            bar2Label = "Bán",
-                            chartFileName = "dyvat_nhap_ban_${state.selectedYear}_${state.selectedMonth}"
+                            bar2Label = "Bán"
                         )
                     }
 
@@ -112,8 +112,7 @@ fun StatisticsScreen(
                             bar2Color = AnnouncementBlue,
                             bar1Label = "Doanh thu",
                             bar2Label = "Lợi nhuận",
-                            negativeBar2Color = NegativeRed,
-                            chartFileName = "dyvat_doanhthu_loinhuan_${state.selectedYear}_${state.selectedMonth}"
+                            negativeBar2Color = NegativeRed
                         )
                     }
 

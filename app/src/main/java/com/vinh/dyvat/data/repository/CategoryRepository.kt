@@ -5,8 +5,11 @@ import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.remote.SupabaseTables
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,13 +48,11 @@ class CategoryRepository @Inject constructor(
     suspend fun insert(name: String): Result<Category> {
         return try {
             Log.d(TAG, "insert: name='$name'")
-            val category = Category(name = name)
+            val id = UUID.randomUUID().toString()
+            val category = CategoryInsert(id = id, name = name.trim())
             Log.d(TAG, "insert: sending to Supabase - $category")
-            val response = supabaseClient.postgrest[SupabaseTables.CATEGORIES]
-                .insert(category)
-                .decodeSingle<Category>()
-            Log.d(TAG, "insert: success - ${response.id}, ${response.name}")
-            Result.Success(response)
+            supabaseClient.postgrest[SupabaseTables.CATEGORIES].insert(category)
+            getById(id)
         } catch (e: Exception) {
             Log.e(TAG, "insert: error - ${e.message}", e)
             e.cause?.let { Log.e(TAG, "insert: caused by - ${it.message}", it) }
@@ -62,16 +63,27 @@ class CategoryRepository @Inject constructor(
     suspend fun update(id: String, name: String): Result<Category> {
         return try {
             Log.d(TAG, "update: id=$id, name='$name'")
-            val response = supabaseClient.postgrest[SupabaseTables.CATEGORIES]
-                .update({ set("name", name) }) {
-                    select()
+            supabaseClient.postgrest[SupabaseTables.CATEGORIES]
+                .update({ set("name", name.trim()) }) {
                     filter { eq("id", id) }
                 }
-                .decodeSingle<Category>()
-            Result.Success(response)
+            getById(id)
         } catch (e: Exception) {
             Log.e(TAG, "update: error - ${e.message}", e)
             Result.Error(e.message ?: "Lỗi khi cập nhật danh mục", e)
+        }
+    }
+
+    suspend fun setActive(id: String, isActive: Boolean): Result<Category> {
+        return try {
+            supabaseClient.postgrest[SupabaseTables.CATEGORIES]
+                .update({ set("is_active", isActive) }) {
+                    filter { eq("id", id) }
+                }
+            getById(id)
+        } catch (e: Exception) {
+            Log.e(TAG, "setActive: error - ${e.message}", e)
+            Result.Error(e.message ?: "Lỗi khi cập nhật trạng thái loại sản phẩm", e)
         }
     }
 
@@ -86,3 +98,11 @@ class CategoryRepository @Inject constructor(
         }
     }
 }
+
+@Serializable
+private data class CategoryInsert(
+    val id: String,
+    val name: String,
+    @SerialName("is_active")
+    val isActive: Boolean = true
+)

@@ -47,3 +47,51 @@ data class YearlySummary(
     val saleTicketCount: Int = 0,
     val monthlyData: List<MonthlySummary> = emptyList()
 )
+
+@Serializable
+data class PurchaseExportRow(
+    @Transient
+    @SerialName("owner_id")
+    val ownerId: String = "",
+    @SerialName("purchase_date")
+    val purchaseDate: String = "",
+    @SerialName("ticket_code")
+    val ticketCode: String = "",
+    @SerialName("product_name")
+    val productName: String = "",
+    @SerialName("supplier_name")
+    val supplierName: String = "",
+    @SerialName("unit_name")
+    val unitName: String = "",
+    @SerialName("quantity_purchased")
+    val quantityPurchased: Int = 0,
+    @SerialName("purchase_price_vnd")
+    val purchasePriceVnd: Long = 0L,
+    @SerialName("line_total_vnd")
+    val lineTotalVnd: Long = 0L
+)
+
+@Serializable
+data class SaleExportRow(
+    @Transient
+    @SerialName("owner_id")
+    val ownerId: String = "",
+    @SerialName("sale_date")
+    val saleDate: String = "",
+    @SerialName("ticket_code")
+    val ticketCode: String = "",
+    @SerialName("product_name")
+    val productName: String = "",
+    @SerialName("unit_name")
+    val unitName: String = "",
+    @SerialName("quantity_sold")
+    val quantitySold: Int = 0,
+    @SerialName("sale_price_vnd")
+    val salePriceVnd: Long = 0L,
+    @SerialName("line_revenue_vnd")
+    val lineRevenueVnd: Long = 0L,
+    @SerialName("line_cost_vnd")
+    val lineCostVnd: Long = 0L,
+    @SerialName("profit_vnd")
+    val profitVnd: Long = 0L
+)

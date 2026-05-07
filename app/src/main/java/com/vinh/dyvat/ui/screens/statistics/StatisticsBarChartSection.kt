@@ -1,7 +1,5 @@
 package com.vinh.dyvat.ui.screens.statistics
 
-import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,38 +16,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vinh.dyvat.ui.components.toVnd
-import com.vinh.dyvat.ui.theme.BorderGray
 import com.vinh.dyvat.ui.theme.DarkCard
 import com.vinh.dyvat.ui.theme.MidDark
 import com.vinh.dyvat.ui.theme.NegativeRed
 import com.vinh.dyvat.ui.theme.TextSilver
 import com.vinh.dyvat.ui.theme.TextWhite
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 // ---------------------------------------------------------------------------
 // Bar chart
@@ -73,11 +59,8 @@ internal fun BarChartSection(
     bar2Color: Color,
     bar1Label: String,
     bar2Label: String,
-    negativeBar2Color: Color = NegativeRed,
-    chartFileName: String
+    negativeBar2Color: Color = NegativeRed
 ) {
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var selectedIdx by remember(bars) { mutableStateOf<Int?>(null) }
 
     val chartHeightDp = 150.dp
@@ -190,32 +173,6 @@ internal fun BarChartSection(
                     }
                 }
             }
-        }
-
-        // Save button
-        Spacer(Modifier.height(6.dp))
-        val b1Int = bar1Color.toArgb()
-        val b2Int = bar2Color.toArgb()
-        val negInt = negativeBar2Color.toArgb()
-        OutlinedButton(
-            onClick = {
-                scope.launch(Dispatchers.IO) {
-                    val bitmap = renderChartToBitmap(bars, b1Int, b2Int, negInt)
-                    saveToGallery(context, bitmap, chartFileName)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Đã lưu ảnh biểu đồ vào Thư viện", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSilver),
-            border = BorderStroke(1.dp, BorderGray)
-        ) {
-            Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Lưu ảnh biểu đồ", fontSize = 13.sp)
         }
     }
 }

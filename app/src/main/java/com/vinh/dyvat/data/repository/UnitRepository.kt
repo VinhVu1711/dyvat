@@ -6,8 +6,11 @@ import com.vinh.dyvat.data.model.UnitModel
 import com.vinh.dyvat.data.remote.SupabaseTables
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,11 +50,10 @@ class UnitRepository @Inject constructor(
 
     suspend fun insert(name: String): Result<UnitModel> {
         return try {
-            val unit = UnitModel(name = name)
-            val response = supabaseClient.postgrest[SupabaseTables.UNITS]
-                .insert(unit)
-                .decodeSingle<UnitModel>()
-            Result.Success(response)
+            val id = UUID.randomUUID().toString()
+            val unit = UnitInsert(id = id, name = name.trim())
+            supabaseClient.postgrest[SupabaseTables.UNITS].insert(unit)
+            getById(id)
         } catch (e: Exception) {
             Result.Error(e.message ?: "Lỗi khi thêm đơn vị tính", e)
         }
@@ -59,15 +61,25 @@ class UnitRepository @Inject constructor(
 
     suspend fun update(id: String, name: String): Result<UnitModel> {
         return try {
-            val response = supabaseClient.postgrest[SupabaseTables.UNITS]
-                .update({ set("name", name) }) {
-                    select()
+            supabaseClient.postgrest[SupabaseTables.UNITS]
+                .update({ set("name", name.trim()) }) {
                     filter { eq("id", id) }
                 }
-                .decodeSingle<UnitModel>()
-            Result.Success(response)
+            getById(id)
         } catch (e: Exception) {
             Result.Error(e.message ?: "Lỗi khi cập nhật đơn vị tính", e)
+        }
+    }
+
+    suspend fun setActive(id: String, isActive: Boolean): Result<UnitModel> {
+        return try {
+            supabaseClient.postgrest[SupabaseTables.UNITS]
+                .update({ set("is_active", isActive) }) {
+                    filter { eq("id", id) }
+                }
+            getById(id)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Lỗi khi cập nhật trạng thái đơn vị tính", e)
         }
     }
 
@@ -81,3 +93,11 @@ class UnitRepository @Inject constructor(
         }
     }
 }
+
+@Serializable
+private data class UnitInsert(
+    val id: String,
+    val name: String,
+    @SerialName("is_active")
+    val isActive: Boolean = true
+)

@@ -66,6 +66,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Tiền nhập",
                 value = state.totalPurchaseVnd.toVnd(),
+                description = "Tổng giá trị hàng đã nhập trong kỳ",
                 icon = Icons.Default.ShoppingCart,
                 iconTint = WarningOrange,
                 modifier = Modifier.weight(1f)
@@ -73,6 +74,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Tiền bán",
                 value = state.totalSaleVnd.toVnd(),
+                description = "Tổng doanh thu bán hàng trong kỳ",
                 icon = Icons.Default.Store,
                 iconTint = SpotifyGreen,
                 modifier = Modifier.weight(1f)
@@ -82,6 +84,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Giá vốn",
                 value = state.totalCostVnd.toVnd(),
+                description = "Chi phí vốn của hàng đã bán",
                 icon = Icons.Default.TrendingDown,
                 iconTint = NegativeRed,
                 modifier = Modifier.weight(1f)
@@ -89,6 +92,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Lợi nhuận",
                 value = state.profitVnd.toVnd(),
+                description = "Doanh thu trừ giá vốn",
                 icon = Icons.Default.TrendingUp,
                 iconTint = if (state.profitVnd >= 0) SpotifyGreen else NegativeRed,
                 valueColor = if (state.profitVnd >= 0) SpotifyGreen else NegativeRed,
@@ -99,6 +103,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Phiếu nhập",
                 value = "${state.purchaseTicketCount} phiếu",
+                description = "Số phiếu nhập đang hoạt động",
                 icon = Icons.Default.Inventory,
                 iconTint = AnnouncementBlue,
                 modifier = Modifier.weight(1f)
@@ -106,6 +111,7 @@ internal fun SummarySection(state: StatisticsUiState) {
             SummaryCard(
                 label = "Phiếu bán",
                 value = "${state.saleTicketCount} phiếu",
+                description = "Số phiếu bán đang hoạt động",
                 icon = Icons.Default.Receipt,
                 iconTint = AnnouncementBlue,
                 modifier = Modifier.weight(1f)
@@ -118,6 +124,7 @@ internal fun SummarySection(state: StatisticsUiState) {
 private fun SummaryCard(
     label: String,
     value: String,
+    description: String,
     icon: ImageVector,
     iconTint: Color,
     modifier: Modifier = Modifier,
@@ -144,5 +151,7 @@ private fun SummaryCard(
         }
         Spacer(Modifier.height(10.dp))
         Text(text = value, color = valueColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(text = description, color = TextSilver, fontSize = 10.sp, lineHeight = 13.sp)
     }
 }

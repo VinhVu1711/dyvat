@@ -47,7 +47,7 @@ fun ErrorState(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Da xay ra loi",
+            text = "Đã xảy ra lỗi",
             color = TextWhite,
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center
@@ -71,7 +71,7 @@ fun ErrorState(
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    text = "Thu lai",
+                    text = "Thử lại",
                     color = NearBlack,
                     modifier = Modifier.padding(start = 6.dp)
                 )

@@ -17,4 +17,6 @@ object SupabaseViews {
     const val V_INVENTORY_LOT_CARDS = "v_inventory_lot_cards"
     const val V_INVENTORY_LOT_DETAILS = "v_inventory_lot_details"
     const val V_DAILY_BUSINESS_SUMMARY = "v_daily_business_summary"
+    const val V_PURCHASE_EXPORT_DETAILS = "v_purchase_export_details"
+    const val V_SALE_EXPORT_DETAILS = "v_sale_export_details"
 }
