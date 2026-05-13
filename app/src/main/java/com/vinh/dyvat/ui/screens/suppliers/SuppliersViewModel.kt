@@ -92,9 +92,15 @@ class SuppliersViewModel @Inject constructor(
     }
 
     fun addSupplier(name: String, phone: String?) {
+        val trimmedName = name.trim()
+        val normalizedPhone = phone?.trim()?.ifBlank { null }
+        validateSupplier(trimmedName, normalizedPhone)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.insert(name, phone)
+            val result = repository.insert(trimmedName, normalizedPhone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -113,9 +119,15 @@ class SuppliersViewModel @Inject constructor(
     }
 
     fun updateSupplier(id: String, name: String, phone: String?) {
+        val trimmedName = name.trim()
+        val normalizedPhone = phone?.trim()?.ifBlank { null }
+        validateSupplier(trimmedName, normalizedPhone, currentId = id)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.update(id, name, phone)
+            val result = repository.update(id, trimmedName, normalizedPhone)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -165,5 +177,39 @@ class SuppliersViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    private fun validateSupplier(
+        name: String,
+        phone: String?,
+        currentId: String? = null
+    ): String? {
+        if (name.isBlank()) return "Tên nhà cung cấp không được để trống"
+
+        val duplicatedName = _uiState.value.suppliers.firstOrNull {
+            it.id != currentId && it.name.trim().equals(name, ignoreCase = true)
+        }
+        if (duplicatedName != null) {
+            return if (duplicatedName.isActive) {
+                "Tên nhà cung cấp này đã tồn tại"
+            } else {
+                "Tên này đã tồn tại trong mục đã ẩn. Hãy khôi phục nhà cung cấp đó hoặc dùng tên khác."
+            }
+        }
+
+        if (!phone.isNullOrBlank()) {
+            val duplicatedPhone = _uiState.value.suppliers.firstOrNull {
+                it.id != currentId && it.phone?.trim() == phone
+            }
+            if (duplicatedPhone != null) {
+                return if (duplicatedPhone.isActive) {
+                    "Số điện thoại này đã được dùng cho nhà cung cấp khác"
+                } else {
+                    "Số điện thoại này thuộc một nhà cung cấp đã ẩn. Hãy khôi phục mục đó hoặc dùng số khác."
+                }
+            }
+        }
+
+        return null
     }
 }

@@ -104,9 +104,14 @@ class CategoriesViewModel @Inject constructor(
     }
 
     fun addCategory(name: String) {
+        val trimmedName = name.trim()
+        validateCategoryName(trimmedName)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.insert(name)
+            val result = repository.insert(trimmedName)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -125,9 +130,14 @@ class CategoriesViewModel @Inject constructor(
     }
 
     fun updateCategory(id: String, name: String) {
+        val trimmedName = name.trim()
+        validateCategoryName(trimmedName, currentId = id)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.update(id, name)
+            val result = repository.update(id, trimmedName)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -177,5 +187,17 @@ class CategoriesViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    private fun validateCategoryName(name: String, currentId: String? = null): String? {
+        if (name.isBlank()) return "Tên loại sản phẩm không được để trống"
+        val duplicated = _uiState.value.categories.firstOrNull {
+            it.id != currentId && it.name.trim().equals(name, ignoreCase = true)
+        } ?: return null
+        return if (duplicated.isActive) {
+            "Tên loại sản phẩm này đã tồn tại"
+        } else {
+            "Tên này đã tồn tại trong mục đã ẩn. Hãy khôi phục loại sản phẩm đó hoặc dùng tên khác."
+        }
     }
 }

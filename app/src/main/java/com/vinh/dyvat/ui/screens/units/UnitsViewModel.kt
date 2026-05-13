@@ -90,9 +90,14 @@ class UnitsViewModel @Inject constructor(
     }
 
     fun addUnit(name: String) {
+        val trimmedName = name.trim()
+        validateUnitName(trimmedName)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.insert(name)
+            val result = repository.insert(trimmedName)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -111,9 +116,14 @@ class UnitsViewModel @Inject constructor(
     }
 
     fun updateUnit(id: String, name: String) {
+        val trimmedName = name.trim()
+        validateUnitName(trimmedName, currentId = id)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = repository.update(id, name)
+            val result = repository.update(id, trimmedName)
             when (result) {
                 is Result.Success -> {
                     hideDialog()
@@ -163,5 +173,17 @@ class UnitsViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    private fun validateUnitName(name: String, currentId: String? = null): String? {
+        if (name.isBlank()) return "Tên đơn vị tính không được để trống"
+        val duplicated = _uiState.value.units.firstOrNull {
+            it.id != currentId && it.name.trim().equals(name, ignoreCase = true)
+        } ?: return null
+        return if (duplicated.isActive) {
+            "Tên đơn vị tính này đã tồn tại"
+        } else {
+            "Tên này đã tồn tại trong mục đã ẩn. Hãy khôi phục đơn vị tính đó hoặc dùng tên khác."
+        }
     }
 }
