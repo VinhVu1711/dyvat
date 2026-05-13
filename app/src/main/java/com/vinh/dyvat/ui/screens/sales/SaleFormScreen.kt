@@ -105,6 +105,9 @@ fun SaleFormScreen(
             val lotCode = savedStateHandle.get<String>("edited_sale_lot_code")
                 ?: savedStateHandle.get<String>("added_sale_lot_code")
                 ?: ""
+            val purchaseDate = savedStateHandle.get<String>("edited_sale_purchase_date")
+                ?: savedStateHandle.get<String>("added_sale_purchase_date")
+                ?: ""
             val expiryDate = savedStateHandle.get<String>("edited_sale_expiry_date")
                 ?: savedStateHandle.get<String>("added_sale_expiry_date")
             val quantityRemaining = savedStateHandle.get<Int>("edited_sale_quantity_remaining")
@@ -127,6 +130,7 @@ fun SaleFormScreen(
             val lot = AvailableLot(
                 purchaseItemId = purchaseItemId,
                 lotCode = lotCode,
+                purchaseDate = purchaseDate,
                 expiryDate = expiryDate,
                 quantityRemaining = quantityRemaining,
                 purchasePriceVnd = purchasePrice
@@ -343,6 +347,7 @@ private fun clearSaleItemSavedState(savedStateHandle: androidx.lifecycle.SavedSt
         "added_sale_product_name",
         "added_sale_purchase_item_id",
         "added_sale_lot_code",
+        "added_sale_purchase_date",
         "added_sale_expiry_date",
         "added_sale_quantity",
         "added_sale_price",
@@ -350,6 +355,7 @@ private fun clearSaleItemSavedState(savedStateHandle: androidx.lifecycle.SavedSt
         "edited_sale_product_name",
         "edited_sale_purchase_item_id",
         "edited_sale_lot_code",
+        "edited_sale_purchase_date",
         "edited_sale_expiry_date",
         "edited_sale_quantity",
         "edited_sale_price"
@@ -429,7 +435,14 @@ private fun SaleDraftItemCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Đơn vị tính: ${item.unitName}", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Mã lô: ${item.lotCode}", color = TextSilver, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Mã lô: ${item.lotCode}",
+                    color = if (item.lotError != null) MaterialTheme.colorScheme.error else TextSilver,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                item.lotError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
                 item.expiryDate?.takeIf { it.isNotBlank() }?.let {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("Ngày hết hạn: $it", color = TextSilver, style = MaterialTheme.typography.bodyMedium)

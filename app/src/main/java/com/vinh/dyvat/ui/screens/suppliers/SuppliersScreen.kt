@@ -161,6 +161,7 @@ fun SuppliersScreen(
                     items(uiState.visibleSuppliers, key = { it.id }) { supplier ->
                         SupplierCard(
                             supplier = supplier,
+                            productCount = uiState.productCountsBySupplier[supplier.id] ?: 0,
                             isSaving = uiState.isSaving,
                             onEdit = { viewModel.showEditDialog(supplier) },
                             onDeactivate = { viewModel.showDeactivateDialog(supplier) },
@@ -190,9 +191,10 @@ fun SuppliersScreen(
     }
 
     uiState.supplierToDeactivate?.let { supplier ->
+        val productCount = uiState.productCountsBySupplier[supplier.id] ?: 0
         ConfirmDialog(
             title = "Ngừng dùng nhà cung cấp",
-            message = "Nhà cung cấp \"${supplier.name}\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới. Lịch sử cũ vẫn được giữ nguyên.",
+            message = buildDeactivateMessage("Nhà cung cấp", supplier.name, productCount),
             confirmText = "Ngừng dùng",
             dismissText = "Hủy",
             onDismiss = { viewModel.hideDeactivateDialog() },
@@ -244,6 +246,7 @@ private fun SupplierHeader(
 @Composable
 private fun SupplierCard(
     supplier: Supplier,
+    productCount: Int,
     isSaving: Boolean,
     onEdit: () -> Unit,
     onDeactivate: () -> Unit,
@@ -271,6 +274,14 @@ private fun SupplierCard(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = supplier.phone?.takeIf { it.isNotBlank() } ?: "Chưa có số điện thoại",
+                color = TextSilver,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (supplier.isActive) "$productCount sản phẩm" else "Đã ẩn",
                 color = TextSilver,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -359,6 +370,15 @@ private fun SupplierFormDialog(
             }
         }
     )
+}
+
+private fun buildDeactivateMessage(entityLabel: String, name: String, productCount: Int): String {
+    val usageWarning = if (productCount > 0) {
+        " Hiện có $productCount sản phẩm đang dùng mục này."
+    } else {
+        ""
+    }
+    return "$entityLabel \"$name\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới.$usageWarning Lịch sử cũ vẫn được giữ nguyên."
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

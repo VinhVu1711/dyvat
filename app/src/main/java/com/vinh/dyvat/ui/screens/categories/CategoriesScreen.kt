@@ -185,9 +185,10 @@ fun CategoriesScreen(
     }
 
     uiState.categoryToDeactivate?.let { category ->
+        val productCount = uiState.productCountsByCategory[category.id] ?: 0
         ConfirmDialog(
             title = "Ngừng dùng loại sản phẩm",
-            message = "Loại \"${category.name}\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới. Lịch sử cũ vẫn được giữ nguyên.",
+            message = buildDeactivateMessage("Loại", category.name, productCount),
             confirmText = "Ngừng dùng",
             dismissText = "Hủy",
             onDismiss = { viewModel.hideDeactivateDialog() },
@@ -349,6 +350,15 @@ private fun CategoryFormDialog(
             }
         }
     )
+}
+
+private fun buildDeactivateMessage(entityLabel: String, name: String, productCount: Int): String {
+    val usageWarning = if (productCount > 0) {
+        " Hiện có $productCount sản phẩm đang dùng mục này."
+    } else {
+        ""
+    }
+    return "$entityLabel \"$name\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới.$usageWarning Lịch sử cũ vẫn được giữ nguyên."
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

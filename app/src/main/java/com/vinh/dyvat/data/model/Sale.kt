@@ -93,6 +93,7 @@ data class SaleItemWithDetails(
 data class AvailableLot(
     val purchaseItemId: String = "",
     val lotCode: String = "",
+    val purchaseDate: String = "",
     val expiryDate: String? = null,
     val quantityRemaining: Int = 0,
     val purchasePriceVnd: Long = 0L,
@@ -102,6 +103,7 @@ data class AvailableLot(
         fun fromPurchaseItem(
             pi: PurchaseItem,
             lotCode: String,
+            purchaseDate: String,
             unitName: String
         ): AvailableLot {
             val expText = pi.expiryDate?.let { "HSD $it" } ?: "Không HSD"
@@ -109,6 +111,7 @@ data class AvailableLot(
             return AvailableLot(
                 purchaseItemId = pi.id,
                 lotCode = lotCode,
+                purchaseDate = purchaseDate,
                 expiryDate = pi.expiryDate,
                 quantityRemaining = pi.quantityRemaining,
                 purchasePriceVnd = pi.purchasePriceVnd,

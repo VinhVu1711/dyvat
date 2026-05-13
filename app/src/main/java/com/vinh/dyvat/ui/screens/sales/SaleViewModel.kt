@@ -98,6 +98,7 @@ data class SaleItemDraftUi(
     val unitName: String = "",
     val purchaseItemId: String = "",
     val lotCode: String = "",
+    val purchaseDate: String = "",
     val expiryDate: String? = null,
     val quantityRemaining: Int = 0,
     val purchasePriceVnd: Long = 0L,
@@ -115,7 +116,7 @@ data class SaleItemDraftUi(
         get() = productId.isNotBlank() &&
                 purchaseItemId.isNotBlank() &&
                 quantity.toIntOrNull()?.let { it > 0 && it <= quantityRemaining } == true &&
-                salePrice.toLongOrNull()?.let { it >= 0 } == true
+                salePrice.toLongOrNull()?.let { it > 0 } == true
 }
 
 enum class SaleStatusFilter {
@@ -390,6 +391,7 @@ class SaleViewModel @Inject constructor(
                 unitName = product.unitName,
                 purchaseItemId = lot.purchaseItemId,
                 lotCode = lot.lotCode,
+                purchaseDate = lot.purchaseDate,
                 expiryDate = lot.expiryDate,
                 quantityRemaining = lot.quantityRemaining,
                 purchasePriceVnd = lot.purchasePriceVnd,
@@ -416,6 +418,7 @@ class SaleViewModel @Inject constructor(
                         unitName = product.unitName,
                         purchaseItemId = lot.purchaseItemId,
                         lotCode = lot.lotCode,
+                        purchaseDate = lot.purchaseDate,
                         expiryDate = lot.expiryDate,
                         quantityRemaining = lot.quantityRemaining,
                         purchasePriceVnd = lot.purchasePriceVnd,
@@ -463,7 +466,12 @@ class SaleViewModel @Inject constructor(
 
         var hasErrors = false
         val validatedItems = state.items.map { item ->
-            var updated = item
+            var updated = item.copy(
+                productError = null,
+                lotError = null,
+                quantityError = null,
+                priceError = null
+            )
             if (item.productId.isBlank()) {
                 updated = updated.copy(productError = "Chọn sản phẩm")
                 hasErrors = true
@@ -481,8 +489,17 @@ class SaleViewModel @Inject constructor(
                 hasErrors = true
             }
             val price = item.salePrice.toLongOrNull()
-            if (price == null || price < 0) {
-                updated = updated.copy(priceError = "Giá bán không hợp lệ")
+            if (price == null || price <= 0) {
+                updated = updated.copy(priceError = "Giá bán phải lớn hơn 0")
+                hasErrors = true
+            }
+            val apiSaleDate = state.saleDate.toApiDateOrNull()
+            if (apiSaleDate != null && item.purchaseDate.isNotBlank() && apiSaleDate < item.purchaseDate.toDateOnly()) {
+                updated = updated.copy(lotError = "Ngày bán không được trước ngày nhập của lô")
+                hasErrors = true
+            }
+            if (item.expiryDate?.toDateOnly()?.let { isExpiredDate(it) } == true) {
+                updated = updated.copy(lotError = "Lô này đã hết hạn sử dụng, không thể bán")
                 hasErrors = true
             }
             updated
@@ -591,3 +608,7 @@ class SaleViewModel @Inject constructor(
         }
     }
 }
+
+private fun String.toDateOnly(): String = split("T")[0]
+
+private fun isExpiredDate(date: String): Boolean = date < LocalDate.now().toString()

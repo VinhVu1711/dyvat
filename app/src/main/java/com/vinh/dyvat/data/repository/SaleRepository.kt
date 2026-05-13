@@ -160,8 +160,12 @@ class SaleRepository @Inject constructor(
                 val ticket = purchaseTickets[item.purchaseTicketId] ?: return@mapNotNull null
                 if (ticket.status != TicketStatus.ACTIVE) return@mapNotNull null
                 val unitName = units[item.unitId]?.name ?: ""
-                AvailableLot.fromPurchaseItem(item, ticket.code, unitName)
-            }.sortedWith(compareBy<AvailableLot> { it.expiryDate ?: "9999-12-31" }.thenBy { it.lotCode })
+                AvailableLot.fromPurchaseItem(item, ticket.code, ticket.purchaseDate.toDateOnly(), unitName)
+            }.sortedWith(
+                compareBy<AvailableLot> { it.expiryDate?.toDateOnly()?.let(::isExpiredDate) == true }
+                    .thenBy { it.expiryDate ?: "9999-12-31" }
+                    .thenBy { it.lotCode }
+            )
 
             emit(Result.Success(result))
         } catch (e: Exception) {
@@ -244,6 +248,8 @@ enum class SaleTicketSortField {
 }
 
 private fun String.toDateOnly(): String = split("T")[0]
+
+private fun isExpiredDate(date: String): Boolean = date < java.time.LocalDate.now().toString()
 
 private fun SaleTicketStatus.toDatabaseValue(): String {
     return when (this) {

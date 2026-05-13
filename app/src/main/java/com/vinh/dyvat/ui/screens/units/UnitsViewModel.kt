@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.UnitModel
+import com.vinh.dyvat.data.repository.ProductRepository
 import com.vinh.dyvat.data.repository.UnitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ data class UnitsUiState(
     val units: List<UnitModel> = emptyList(),
     val searchQuery: String = "",
     val showInactive: Boolean = false,
+    val productCountsByUnit: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -35,7 +37,8 @@ data class UnitsUiState(
 
 @HiltViewModel
 class UnitsViewModel @Inject constructor(
-    private val repository: UnitRepository
+    private val repository: UnitRepository,
+    private val productRepository: ProductRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UnitsUiState())
@@ -50,8 +53,19 @@ class UnitsViewModel @Inject constructor(
             repository.getAll(activeOnly = false).collect { result ->
                 when (result) {
                     is Result.Loading -> _uiState.update { it.copy(isLoading = true, error = null) }
-                    is Result.Success -> _uiState.update {
-                        it.copy(isLoading = false, units = result.data, error = null)
+                    is Result.Success -> {
+                        val counts = when (val countResult = productRepository.getActiveProductCountsByUnit()) {
+                            is Result.Success -> countResult.data
+                            else -> _uiState.value.productCountsByUnit
+                        }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                units = result.data,
+                                productCountsByUnit = counts,
+                                error = null
+                            )
+                        }
                     }
                     is Result.Error -> _uiState.update {
                         it.copy(isLoading = false, error = result.message)

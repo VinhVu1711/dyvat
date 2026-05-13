@@ -111,6 +111,7 @@ data class PurchaseItemDraftUi(
     val quantity: String = "",
     val purchasePrice: String = "",
     val productError: String? = null,
+    val supplierError: String? = null,
     val quantityError: String? = null,
     val priceError: String? = null,
     val expiryDateError: String? = null
@@ -124,8 +125,9 @@ data class PurchaseItemDraftUi(
 
     val isValid: Boolean
         get() = productId.isNotBlank() &&
+                supplierId.isNotBlank() &&
                 quantity.toIntOrNull()?.let { it > 0 } == true &&
-                purchasePrice.toLongOrNull()?.let { it >= 0 } == true &&
+                purchasePrice.toLongOrNull()?.let { it > 0 } == true &&
                 expiryDate.isNotBlank()
 }
 
@@ -553,6 +555,7 @@ class PurchaseViewModel @Inject constructor(
                         quantity = quantity,
                         purchasePrice = price,
                         productError = null,
+                        supplierError = null,
                         quantityError = null,
                         priceError = null,
                         expiryDateError = null
@@ -592,7 +595,8 @@ class PurchaseViewModel @Inject constructor(
             items = _formState.value.items.map { item ->
                 if (item.id == itemId) item.copy(
                     supplierId = supplierId,
-                    supplierName = supplierName
+                    supplierName = supplierName,
+                    supplierError = null
                 ) else item
             }
         )
@@ -665,6 +669,14 @@ class PurchaseViewModel @Inject constructor(
                 updatedItem = updatedItem.copy(productError = null)
             }
 
+            if (item.supplierId.isBlank()) {
+                updatedItem = updatedItem.copy(supplierError = "Chọn nhà cung cấp")
+                hasErrors = true
+                itemHasError = true
+            } else {
+                updatedItem = updatedItem.copy(supplierError = null)
+            }
+
             val qty = item.quantity.toIntOrNull()
             if (qty == null || qty <= 0) {
                 updatedItem = updatedItem.copy(quantityError = "Số lượng phải lớn hơn 0")
@@ -675,8 +687,8 @@ class PurchaseViewModel @Inject constructor(
             }
 
             val price = item.purchasePrice.toLongOrNull()
-            if (price == null || price < 0) {
-                updatedItem = updatedItem.copy(priceError = "Giá không hợp lệ")
+            if (price == null || price <= 0) {
+                updatedItem = updatedItem.copy(priceError = "Giá nhập phải lớn hơn 0")
                 hasErrors = true
                 itemHasError = true
             } else {

@@ -159,6 +159,7 @@ fun UnitsScreen(
                     items(uiState.visibleUnits, key = { it.id }) { unit ->
                         UnitCard(
                             unit = unit,
+                            productCount = uiState.productCountsByUnit[unit.id] ?: 0,
                             isSaving = uiState.isSaving,
                             onEdit = { viewModel.showEditDialog(unit) },
                             onDeactivate = { viewModel.showDeactivateDialog(unit) },
@@ -183,9 +184,10 @@ fun UnitsScreen(
     }
 
     uiState.unitToDeactivate?.let { unit ->
+        val productCount = uiState.productCountsByUnit[unit.id] ?: 0
         ConfirmDialog(
             title = "Ngừng dùng đơn vị tính",
-            message = "Đơn vị \"${unit.name}\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới. Lịch sử cũ vẫn được giữ nguyên.",
+            message = buildDeactivateMessage("Đơn vị", unit.name, productCount),
             confirmText = "Ngừng dùng",
             dismissText = "Hủy",
             onDismiss = { viewModel.hideDeactivateDialog() },
@@ -237,6 +239,7 @@ private fun UnitHeader(
 @Composable
 private fun UnitCard(
     unit: UnitModel,
+    productCount: Int,
     isSaving: Boolean,
     onEdit: () -> Unit,
     onDeactivate: () -> Unit,
@@ -263,7 +266,7 @@ private fun UnitCard(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = if (unit.isActive) "Đang dùng" else "Đã ẩn",
+                text = if (unit.isActive) "$productCount sản phẩm" else "Đã ẩn",
                 color = TextSilver,
                 fontSize = 13.sp
             )
@@ -346,6 +349,15 @@ private fun UnitFormDialog(
             }
         }
     )
+}
+
+private fun buildDeactivateMessage(entityLabel: String, name: String, productCount: Int): String {
+    val usageWarning = if (productCount > 0) {
+        " Hiện có $productCount sản phẩm đang dùng mục này."
+    } else {
+        ""
+    }
+    return "$entityLabel \"$name\" sẽ bị ẩn khỏi danh sách mặc định và dropdown tạo dữ liệu mới.$usageWarning Lịch sử cũ vẫn được giữ nguyên."
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

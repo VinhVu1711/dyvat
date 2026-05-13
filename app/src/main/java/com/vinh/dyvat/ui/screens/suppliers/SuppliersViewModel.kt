@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vinh.dyvat.data.model.Result
 import com.vinh.dyvat.data.model.Supplier
+import com.vinh.dyvat.data.repository.ProductRepository
 import com.vinh.dyvat.data.repository.SupplierRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ data class SuppliersUiState(
     val suppliers: List<Supplier> = emptyList(),
     val searchQuery: String = "",
     val showInactive: Boolean = false,
+    val productCountsBySupplier: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -37,7 +39,8 @@ data class SuppliersUiState(
 
 @HiltViewModel
 class SuppliersViewModel @Inject constructor(
-    private val repository: SupplierRepository
+    private val repository: SupplierRepository,
+    private val productRepository: ProductRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SuppliersUiState())
@@ -52,8 +55,19 @@ class SuppliersViewModel @Inject constructor(
             repository.getAll(activeOnly = false).collect { result ->
                 when (result) {
                     is Result.Loading -> _uiState.update { it.copy(isLoading = true, error = null) }
-                    is Result.Success -> _uiState.update {
-                        it.copy(isLoading = false, suppliers = result.data, error = null)
+                    is Result.Success -> {
+                        val counts = when (val countResult = productRepository.getActiveProductCountsBySupplier()) {
+                            is Result.Success -> countResult.data
+                            else -> _uiState.value.productCountsBySupplier
+                        }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                suppliers = result.data,
+                                productCountsBySupplier = counts,
+                                error = null
+                            )
+                        }
                     }
                     is Result.Error -> _uiState.update {
                         it.copy(isLoading = false, error = result.message)

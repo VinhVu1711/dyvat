@@ -574,8 +574,27 @@ private fun PurchaseItemCard(
                 if (item.supplierName.isNotEmpty()) {
                     Text(
                         text = "Nhà cung cấp: ${item.supplierName}",
-                        color = TextSilver,
+                        color = if (item.supplierError != null) MaterialTheme.colorScheme.error else TextSilver,
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    item.supplierError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                } else if (item.supplierError != null) {
+                    Text(
+                        text = "Nhà cung cấp: (trống)",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = item.supplierError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                 }

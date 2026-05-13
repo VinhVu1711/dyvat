@@ -176,6 +176,7 @@ fun AddPurchaseItemScreen(
     var purchasePrice by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
     var productError by remember { mutableStateOf<String?>(null) }
+    var supplierError by remember { mutableStateOf<String?>(null) }
     var quantityError by remember { mutableStateOf<String?>(null) }
     var expiryDateError by remember { mutableStateOf<String?>(null) }
     var priceError by remember { mutableStateOf<String?>(null) }
@@ -216,6 +217,7 @@ fun AddPurchaseItemScreen(
         if (product.supplierName.isNotEmpty()) {
             selectedSupplierId = product.supplierId
             selectedSupplierName = product.supplierName
+            supplierError = null
         }
     }
 
@@ -249,10 +251,16 @@ fun AddPurchaseItemScreen(
         } else {
             quantityError = null
         }
+        if (selectedSupplierId.isNullOrBlank()) {
+            supplierError = "Vui lòng chọn nhà cung cấp"
+            isValid = false
+        } else {
+            supplierError = null
+        }
         expiryDateError = validateExpiryDate(expiryDate, purchaseDate)
         if (expiryDateError != null) isValid = false
-        if (purchasePrice.isBlank() || purchasePrice.toLongOrNull()?.let { it >= 0 } != true) {
-            priceError = "Giá nhập không hợp lệ"
+        if (purchasePrice.isBlank() || purchasePrice.toLongOrNull()?.let { it > 0 } != true) {
+            priceError = "Giá nhập phải lớn hơn 0"
             isValid = false
         } else {
             priceError = null
@@ -385,8 +393,17 @@ fun AddPurchaseItemScreen(
                 onSupplierSelected = { supplier ->
                     selectedSupplierId = supplier?.id
                     selectedSupplierName = supplier?.name ?: ""
+                    supplierError = null
                 }
             )
+            supplierError?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text("Đơn vị tính", color = TextSilver, style = MaterialTheme.typography.bodyMedium)

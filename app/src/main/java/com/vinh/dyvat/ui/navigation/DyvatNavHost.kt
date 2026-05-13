@@ -460,12 +460,13 @@ fun DyvatNavHost(
             AddSaleItemScreen(
                 saleDate = saleDate,
                 availableProductsData = productsData,
-                onProductAdded = { productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                onProductAdded = { productId, productName, purchaseItemId, lotCode, purchaseDate, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
                     navController.previousBackStackEntry?.savedStateHandle?.apply {
                         set("added_sale_product_id", productId)
                         set("added_sale_product_name", productName)
                         set("added_sale_purchase_item_id", purchaseItemId)
                         set("added_sale_lot_code", lotCode)
+                        set("added_sale_purchase_date", purchaseDate)
                         set("added_sale_expiry_date", expiryDate)
                         set("added_sale_quantity_remaining", quantityRemaining)
                         set("added_sale_purchase_price", purchasePrice)
@@ -516,12 +517,13 @@ fun DyvatNavHost(
                 saleDate = saleDate,
                 availableProductsData = productsData,
                 editingItem = editingItem,
-                onProductAdded = { productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                onProductAdded = { productId, productName, purchaseItemId, lotCode, purchaseDate, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
                     navController.previousBackStackEntry?.savedStateHandle?.apply {
                         set("added_sale_product_id", productId)
                         set("added_sale_product_name", productName)
                         set("added_sale_purchase_item_id", purchaseItemId)
                         set("added_sale_lot_code", lotCode)
+                        set("added_sale_purchase_date", purchaseDate)
                         set("added_sale_expiry_date", expiryDate)
                         set("added_sale_quantity_remaining", quantityRemaining)
                         set("added_sale_purchase_price", purchasePrice)
@@ -531,13 +533,14 @@ fun DyvatNavHost(
                     }
                     navController.popBackStack()
                 },
-                onProductEdited = { editedItemId, productId, productName, purchaseItemId, lotCode, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
+                onProductEdited = { editedItemId, productId, productName, purchaseItemId, lotCode, purchaseDate, expiryDate, quantityRemaining, purchasePrice, quantity, price ->
                     navController.previousBackStackEntry?.savedStateHandle?.apply {
                         set("edited_sale_item_id", editedItemId)
                         set("edited_sale_product_id", productId)
                         set("edited_sale_product_name", productName)
                         set("edited_sale_purchase_item_id", purchaseItemId)
                         set("edited_sale_lot_code", lotCode)
+                        set("edited_sale_purchase_date", purchaseDate)
                         set("edited_sale_expiry_date", expiryDate)
                         set("edited_sale_quantity_remaining", quantityRemaining)
                         set("edited_sale_purchase_price", purchasePrice)

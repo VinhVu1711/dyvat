@@ -267,7 +267,7 @@ class ProductRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e("ProductRepository", "insert: error - ${e.message}", e)
-            Result.Error(e.message ?: "Lỗi khi thêm sản phẩm", e)
+            Result.Error(productSaveErrorMessage(e, "Lỗi khi thêm sản phẩm"), e)
         }
     }
 
@@ -307,9 +307,28 @@ class ProductRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e("ProductRepository", "update: error - ${e.message}", e)
-            return Result.Error(e.message ?: "Lỗi khi cập nhật sản phẩm", e)
+            return Result.Error(productSaveErrorMessage(e, "Lỗi khi cập nhật sản phẩm"), e)
         }
     }
+
+    suspend fun isNameTaken(name: String, currentProductId: String? = null): Result<Boolean> {
+        return try {
+            val trimmed = name.trim()
+            val matches = supabaseClient.postgrest[SupabaseTables.PRODUCTS]
+                .select { filter { ilike("name", trimmed) } }
+                .decodeList<Product>()
+            Result.Success(
+                matches.any {
+                    it.name.trim().equals(trimmed, ignoreCase = true) &&
+                        it.id != currentProductId
+                }
+            )
+        } catch (e: Exception) {
+            Log.e("ProductRepository", "isNameTaken: error - ${e.message}", e)
+            Result.Error(e.message ?: "Lỗi khi kiểm tra tên sản phẩm", e)
+        }
+    }
+
     suspend fun updateStatus(id: String, status: ProductStatus): Result<Product> {
         return try {
             val statusStr = when (status) {
@@ -329,14 +348,28 @@ class ProductRepository @Inject constructor(
     }
 
     suspend fun getActiveProductCountsByCategory(): Result<Map<String, Int>> {
+        return getActiveProductCountsBy { it.categoryId }
+    }
+
+    suspend fun getActiveProductCountsByUnit(): Result<Map<String, Int>> {
+        return getActiveProductCountsBy { it.unitId }
+    }
+
+    suspend fun getActiveProductCountsBySupplier(): Result<Map<String, Int>> {
+        return getActiveProductCountsBy { it.supplierId }
+    }
+
+    private suspend fun getActiveProductCountsBy(
+        selector: (Product) -> String
+    ): Result<Map<String, Int>> {
         return try {
             val products = supabaseClient.postgrest[SupabaseTables.PRODUCTS]
                 .select { filter { eq("status", "active") } }
                 .decodeList<Product>()
-            Result.Success(products.groupingBy { it.categoryId }.eachCount())
+            Result.Success(products.groupingBy(selector).eachCount())
         } catch (e: Exception) {
-            Log.e("ProductRepository", "getActiveProductCountsByCategory: error - ${e.message}", e)
-            Result.Error(e.message ?: "Lỗi khi tải số sản phẩm theo loại", e)
+            Log.e("ProductRepository", "getActiveProductCountsBy: error - ${e.message}", e)
+            Result.Error(e.message ?: "Lỗi khi tải số sản phẩm đang dùng", e)
         }
     }
 
@@ -383,4 +416,17 @@ enum class ProductSortField {
     CODE,
     SALE_PRICE,
     CREATED_AT
+}
+
+private fun productSaveErrorMessage(e: Exception, fallback: String): String {
+    val message = e.message.orEmpty()
+    return if (
+        message.contains("ux_products_owner_lower_name", ignoreCase = true) ||
+        message.contains("duplicate key", ignoreCase = true) ||
+        message.contains("products_owner_lower_name", ignoreCase = true)
+    ) {
+        "Sản phẩm này đã tồn tại. Vui lòng dùng tên khác hoặc chỉnh sửa sản phẩm cũ."
+    } else {
+        e.message ?: fallback
+    }
 }

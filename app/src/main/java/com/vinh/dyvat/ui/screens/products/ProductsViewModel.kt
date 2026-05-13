@@ -806,12 +806,12 @@ class ProductsViewModel @Inject constructor(
             _formUiState.value = _formUiState.value.copy(supplierError = "Vui lòng chọn nhà cung cấp")
             hasError = true
         }
-        if (state.purchasePrice.isBlank() || state.purchasePrice.toLongOrNull() == null || state.purchasePrice.toLong() < 0) {
-            _formUiState.value = _formUiState.value.copy(purchasePriceError = "Giá nhập không hợp lệ")
+        if (state.purchasePrice.isBlank() || state.purchasePrice.toLongOrNull() == null || state.purchasePrice.toLong() <= 0) {
+            _formUiState.value = _formUiState.value.copy(purchasePriceError = "Giá nhập phải lớn hơn 0")
             hasError = true
         }
-        if (state.salePrice.isBlank() || state.salePrice.toLongOrNull() == null || state.salePrice.toLong() < 0) {
-            _formUiState.value = _formUiState.value.copy(salePriceError = "Giá bán không hợp lệ")
+        if (state.salePrice.isBlank() || state.salePrice.toLongOrNull() == null || state.salePrice.toLong() <= 0) {
+            _formUiState.value = _formUiState.value.copy(salePriceError = "Giá bán phải lớn hơn 0")
             hasError = true
         }
 
@@ -832,23 +832,35 @@ class ProductsViewModel @Inject constructor(
             return
         }
 
-        val isDuplicate = _uiState.value.products.any {
-            it.product.name.equals(state.name.trim(), ignoreCase = true) &&
-            (state.isEditMode && state.editingProductId == it.product.id).not()
-        }
-        Log.d(TAG, "saveProduct: isDuplicate=$isDuplicate")
-
-        if (isDuplicate) {
-            _formUiState.value = _formUiState.value.copy(
-                showErrorDialog = true,
-                errorDialogTitle = "Sản phẩm đã tồn tại",
-                errorDialogMessage = "Sản phẩm \"${state.name.trim()}\" đã có trong hệ thống. Vui lòng nhập tên khác hoặc chỉnh sửa sản phẩm cũ."
-            )
-            return
-        }
-
         viewModelScope.launch {
             _formUiState.value = _formUiState.value.copy(isLoading = true, error = null)
+
+            when (val duplicateResult = productRepository.isNameTaken(
+                name = state.name,
+                currentProductId = state.editingProductId
+            )) {
+                is Result.Success -> {
+                    if (duplicateResult.data) {
+                        _formUiState.value = _formUiState.value.copy(
+                            isLoading = false,
+                            showErrorDialog = true,
+                            errorDialogTitle = "Sản phẩm đã tồn tại",
+                            errorDialogMessage = "Sản phẩm \"${state.name.trim()}\" đã có trong hệ thống. Vui lòng nhập tên khác hoặc chỉnh sửa sản phẩm cũ."
+                        )
+                        return@launch
+                    }
+                }
+                is Result.Error -> {
+                    _formUiState.value = _formUiState.value.copy(
+                        isLoading = false,
+                        showErrorDialog = true,
+                        errorDialogTitle = "Không thể kiểm tra tên sản phẩm",
+                        errorDialogMessage = duplicateResult.message
+                    )
+                    return@launch
+                }
+                is Result.Loading -> {}
+            }
 
             val result = if (state.isEditMode && state.editingProductId != null) {
                 productRepository.update(
@@ -892,7 +904,7 @@ class ProductsViewModel @Inject constructor(
                         isLoading = false,
                         showErrorDialog = true,
                         errorDialogTitle = "Lỗi khi lưu sản phẩm",
-                        errorDialogMessage = "Không thể lưu sản phẩm. Vui lòng kiểm tra lại thông tin và thử lại."
+                        errorDialogMessage = result.message
                     )
                 }
                 is Result.Loading -> {}

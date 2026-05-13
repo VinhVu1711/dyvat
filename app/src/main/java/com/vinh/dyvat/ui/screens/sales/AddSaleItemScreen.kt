@@ -28,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -67,6 +69,7 @@ import com.vinh.dyvat.ui.theme.NearBlack
 import com.vinh.dyvat.ui.theme.SpotifyGreen
 import com.vinh.dyvat.ui.theme.TextSilver
 import com.vinh.dyvat.ui.theme.TextWhite
+import java.time.LocalDate
 
 data class SaleProductData(
     val id: String,
@@ -107,6 +110,7 @@ fun AddSaleItemScreen(
         productName: String,
         purchaseItemId: String,
         lotCode: String,
+        purchaseDate: String,
         expiryDate: String?,
         quantityRemaining: Int,
         purchasePrice: Long,
@@ -119,12 +123,13 @@ fun AddSaleItemScreen(
         productName: String,
         purchaseItemId: String,
         lotCode: String,
+        purchaseDate: String,
         expiryDate: String?,
         quantityRemaining: Int,
         purchasePrice: Long,
         quantity: String,
         price: String
-    ) -> Unit = { _, _, _, _, _, _, _, _, _, _ -> },
+    ) -> Unit = { _, _, _, _, _, _, _, _, _, _, _ -> },
     onNavigateBack: () -> Unit,
     viewModel: SaleViewModel = hiltViewModel()
 ) {
@@ -158,6 +163,7 @@ fun AddSaleItemScreen(
     var lotError by remember { mutableStateOf<String?>(null) }
     var quantityError by remember { mutableStateOf<String?>(null) }
     var priceError by remember { mutableStateOf<String?>(null) }
+    var expiredLotDialogMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(editingItem?.id, availableProducts) {
         editingItem?.let { item ->
@@ -165,6 +171,7 @@ fun AddSaleItemScreen(
             selectedLot = AvailableLot(
                 purchaseItemId = item.purchaseItemId,
                 lotCode = item.lotCode,
+                purchaseDate = item.purchaseDate,
                 expiryDate = item.expiryDate,
                 quantityRemaining = item.quantityRemaining,
                 purchasePriceVnd = item.purchasePriceVnd
@@ -244,8 +251,12 @@ fun AddSaleItemScreen(
         } else {
             quantityError = null
         }
-        if (salePrice.isBlank() || salePrice.toLongOrNull()?.let { it >= 0 } != true) {
-            priceError = "Giá bán không hợp lệ"
+        if (lot?.expiryDate?.toDateOnly()?.let { isExpiredDate(it) } == true) {
+            lotError = "Lô này đã hết hạn sử dụng, không thể bán"
+            isValid = false
+        }
+        if (salePrice.isBlank() || salePrice.toLongOrNull()?.let { it > 0 } != true) {
+            priceError = "Giá bán phải lớn hơn 0"
             isValid = false
         } else {
             priceError = null
@@ -264,6 +275,7 @@ fun AddSaleItemScreen(
                 product.name,
                 lot.purchaseItemId,
                 lot.lotCode,
+                lot.purchaseDate,
                 lot.expiryDate,
                 lot.quantityRemaining,
                 lot.purchasePriceVnd,
@@ -276,6 +288,7 @@ fun AddSaleItemScreen(
                 product.name,
                 lot.purchaseItemId,
                 lot.lotCode,
+                lot.purchaseDate,
                 lot.expiryDate,
                 lot.quantityRemaining,
                 lot.purchasePriceVnd,
@@ -384,9 +397,13 @@ fun AddSaleItemScreen(
                             lot = lot,
                             isSelected = selectedLot?.purchaseItemId == lot.purchaseItemId,
                             onClick = {
-                                selectedLot = lot
-                                lotError = null
-                                quantityError = null
+                                if (lot.expiryDate?.toDateOnly()?.let { isExpiredDate(it) } == true) {
+                                    expiredLotDialogMessage = "Lô ${lot.lotCode.ifEmpty { lot.purchaseItemId.take(8).uppercase() }} đã hết hạn sử dụng, không thể bán."
+                                } else {
+                                    selectedLot = lot
+                                    lotError = null
+                                    quantityError = null
+                                }
                             }
                         )
                     }
@@ -482,6 +499,20 @@ fun AddSaleItemScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+
+    expiredLotDialogMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { expiredLotDialogMessage = null },
+            containerColor = DarkCard,
+            title = { Text("Không thể chọn lô hết hạn", color = TextWhite, fontWeight = FontWeight.Bold) },
+            text = { Text(message, color = TextSilver) },
+            confirmButton = {
+                TextButton(onClick = { expiredLotDialogMessage = null }) {
+                    Text("Đã hiểu", color = SpotifyGreen)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -570,10 +601,19 @@ private fun SaleLotPickRow(lot: AvailableLot, isSelected: Boolean, onClick: () -
         }
         Text(
             text = "${lot.expiryDate?.let { "HSD $it" } ?: "Không HSD"} - còn ${lot.quantityRemaining}",
-            color = TextSilver,
+            color = if (lot.expiryDate?.toDateOnly()?.let { isExpiredDate(it) } == true) MaterialTheme.colorScheme.error else TextSilver,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
         )
+        if (lot.expiryDate?.toDateOnly()?.let { isExpiredDate(it) } == true) {
+            Text(
+                text = "Đã hết hạn",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = if (isSelected) 24.dp else 0.dp)
+            )
+        }
         Text(
             text = "Giá vốn: ${lot.purchasePriceVnd.toVnd()}",
             color = TextSilver,
@@ -635,3 +675,7 @@ private fun SaleNumberField(
         shape = RoundedCornerShape(12.dp)
     )
 }
+
+private fun String.toDateOnly(): String = split("T")[0]
+
+private fun isExpiredDate(date: String): Boolean = date < LocalDate.now().toString()
