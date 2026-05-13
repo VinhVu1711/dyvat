@@ -25,6 +25,7 @@ import com.vinh.dyvat.ui.screens.purchase.PurchaseFormScreen
 import com.vinh.dyvat.ui.screens.purchase.PurchaseViewModel
 import com.vinh.dyvat.ui.screens.products.ProductDetailScreen
 import com.vinh.dyvat.ui.screens.products.ProductFormScreen
+import com.vinh.dyvat.ui.screens.products.ProductImportScreen
 import com.vinh.dyvat.ui.screens.products.ProductsScreen
 import com.vinh.dyvat.ui.screens.sales.AddSaleItemScreen
 import com.vinh.dyvat.ui.screens.sales.SaleDetailScreen
@@ -98,10 +99,24 @@ fun DyvatNavHost(
                 onNavigateToAdd = {
                     navController.navigate(Screen.ProductForm.createRoute())
                 },
+                onNavigateToImport = {
+                    navController.navigate(Screen.ProductImport.route)
+                },
                 showBackButton = false,
                 refreshSignal = shouldRefreshProducts,
                 onRefreshHandled = {
                     backStackEntry.savedStateHandle["products_should_refresh"] = false
+                }
+            )
+        }
+
+        composable(Screen.ProductImport.route) {
+            ProductImportScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onImportSuccess = {
+                    navController.getBackStackEntry(Screen.Products.route)
+                        .savedStateHandle["products_should_refresh"] = true
+                    navController.popBackStack()
                 }
             )
         }

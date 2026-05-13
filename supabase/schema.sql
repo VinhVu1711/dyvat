@@ -884,3 +884,199 @@ grant select on
     public.v_purchase_export_details,
     public.v_sale_export_details
 to authenticated;
+
+-- =========================================================
+-- 12. PRODUCT EXCEL IMPORT RPC
+-- Used by Supabase Edge Function import-products-xlsx.
+-- Validated payload is committed in one transaction by PostgreSQL.
+-- =========================================================
+
+create or replace function public.import_products_from_payload(import_payload jsonb)
+returns jsonb
+language plpgsql
+security invoker
+as $$
+declare
+    v_owner_id uuid := auth.uid();
+    v_category jsonb;
+    v_unit jsonb;
+    v_supplier jsonb;
+    v_product jsonb;
+    v_category_id uuid;
+    v_unit_id uuid;
+    v_supplier_id uuid;
+    v_categories_created int := 0;
+    v_categories_reused int := 0;
+    v_units_created int := 0;
+    v_units_reused int := 0;
+    v_suppliers_created int := 0;
+    v_suppliers_reused int := 0;
+    v_products_created int := 0;
+begin
+    if v_owner_id is null then
+        raise exception 'User is not authenticated.';
+    end if;
+
+    if jsonb_typeof(import_payload) is distinct from 'object' then
+        raise exception 'Import payload must be a JSON object.';
+    end if;
+
+    for v_category in
+        select value from jsonb_array_elements(coalesce(import_payload -> 'categories', '[]'::jsonb))
+    loop
+        select id
+        into v_category_id
+        from public.categories
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_category #>> '{}'))
+        limit 1;
+
+        if v_category_id is null then
+            insert into public.categories (name)
+            values (trim(v_category #>> '{}'))
+            returning id into v_category_id;
+            v_categories_created := v_categories_created + 1;
+        else
+            update public.categories
+            set is_active = true
+            where owner_id = v_owner_id
+              and id = v_category_id
+              and is_active = false;
+            v_categories_reused := v_categories_reused + 1;
+        end if;
+    end loop;
+
+    for v_unit in
+        select value from jsonb_array_elements(coalesce(import_payload -> 'units', '[]'::jsonb))
+    loop
+        select id
+        into v_unit_id
+        from public.units
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_unit #>> '{}'))
+        limit 1;
+
+        if v_unit_id is null then
+            insert into public.units (name)
+            values (trim(v_unit #>> '{}'))
+            returning id into v_unit_id;
+            v_units_created := v_units_created + 1;
+        else
+            update public.units
+            set is_active = true
+            where owner_id = v_owner_id
+              and id = v_unit_id
+              and is_active = false;
+            v_units_reused := v_units_reused + 1;
+        end if;
+    end loop;
+
+    for v_supplier in
+        select value from jsonb_array_elements(coalesce(import_payload -> 'suppliers', '[]'::jsonb))
+    loop
+        select id
+        into v_supplier_id
+        from public.suppliers
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_supplier ->> 'name'))
+        limit 1;
+
+        if v_supplier_id is null then
+            insert into public.suppliers (name, phone)
+            values (
+                trim(v_supplier ->> 'name'),
+                nullif(trim(coalesce(v_supplier ->> 'phone', '')), '')
+            )
+            returning id into v_supplier_id;
+            v_suppliers_created := v_suppliers_created + 1;
+        else
+            update public.suppliers
+            set is_active = true
+            where owner_id = v_owner_id
+              and id = v_supplier_id
+              and is_active = false;
+            v_suppliers_reused := v_suppliers_reused + 1;
+        end if;
+    end loop;
+
+    for v_product in
+        select value from jsonb_array_elements(coalesce(import_payload -> 'products', '[]'::jsonb))
+    loop
+        select id
+        into v_category_id
+        from public.categories
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_product ->> 'categoryName'))
+        limit 1;
+
+        select id
+        into v_unit_id
+        from public.units
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_product ->> 'unitName'))
+        limit 1;
+
+        select id
+        into v_supplier_id
+        from public.suppliers
+        where owner_id = v_owner_id
+          and lower(name) = lower(trim(v_product ->> 'supplierName'))
+        limit 1;
+
+        if v_category_id is null or v_unit_id is null or v_supplier_id is null then
+            raise exception 'Product "%" references missing category, unit, or supplier.', v_product ->> 'name';
+        end if;
+
+        update public.categories
+        set is_active = true
+        where owner_id = v_owner_id
+          and id = v_category_id
+          and is_active = false;
+
+        update public.units
+        set is_active = true
+        where owner_id = v_owner_id
+          and id = v_unit_id
+          and is_active = false;
+
+        update public.suppliers
+        set is_active = true
+        where owner_id = v_owner_id
+          and id = v_supplier_id
+          and is_active = false;
+
+        insert into public.products (
+            name,
+            category_id,
+            unit_id,
+            supplier_id,
+            default_purchase_price_vnd,
+            default_sale_price_vnd,
+            status
+        )
+        values (
+            trim(v_product ->> 'name'),
+            v_category_id,
+            v_unit_id,
+            v_supplier_id,
+            (v_product ->> 'defaultPurchasePriceVnd')::bigint,
+            (v_product ->> 'defaultSalePriceVnd')::bigint,
+            'active'
+        );
+
+        v_products_created := v_products_created + 1;
+    end loop;
+
+    return jsonb_build_object(
+        'categoriesCreated', v_categories_created,
+        'categoriesReused', v_categories_reused,
+        'unitsCreated', v_units_created,
+        'unitsReused', v_units_reused,
+        'suppliersCreated', v_suppliers_created,
+        'suppliersReused', v_suppliers_reused,
+        'productsCreated', v_products_created
+    );
+end;
+$$;
+
+grant execute on function public.import_products_from_payload(jsonb) to authenticated;

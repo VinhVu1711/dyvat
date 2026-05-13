@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
@@ -89,6 +90,7 @@ fun ProductsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToAdd: () -> Unit,
+    onNavigateToImport: () -> Unit,
     showBackButton: Boolean = true,
     refreshSignal: Boolean = false,
     onRefreshHandled: () -> Unit = {},
@@ -138,6 +140,15 @@ fun ProductsScreen(
                                 tint = TextWhite
                             )
                         }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToImport) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = "Import sản phẩm",
+                            tint = SpotifyGreen
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NearBlack)
