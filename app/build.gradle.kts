@@ -31,6 +31,20 @@ android {
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties["supabase.url"]}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${localProperties["supabase.anonKey"]}\"")
     }
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+                ?: localProperties["release.storeFile"] as String?
+
+            storeFile = keystorePath?.let { file(it) }
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                ?: localProperties["release.storePassword"] as String?
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                ?: localProperties["release.keyAlias"] as String?
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                ?: localProperties["release.keyPassword"] as String?
+        }
+    }
 
     buildTypes {
         release {
