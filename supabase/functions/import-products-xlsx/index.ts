@@ -296,10 +296,10 @@ function parseProductsSheet(workbook: XLSX.WorkBook, errors: ImportError[]): Pro
       const salePrice = parseVnd(saleValue);
 
       if (purchasePrice == null && purchaseValue.isNotBlank()) {
-        pushError(errors, sheetName, rowNumber, "gia_nhap", purchaseValue, "Giá nhập không hợp lệ", "Chỉ nhập số VND không âm.");
+        pushError(errors, sheetName, rowNumber, "gia_nhap", purchaseValue, "Giá nhập không hợp lệ", "Chỉ nhập số VND lớn hơn 0.");
       }
       if (salePrice == null && saleValue.isNotBlank()) {
-        pushError(errors, sheetName, rowNumber, "gia_ban", saleValue, "Giá bán không hợp lệ", "Chỉ nhập số VND không âm.");
+        pushError(errors, sheetName, rowNumber, "gia_ban", saleValue, "Giá bán không hợp lệ", "Chỉ nhập số VND lớn hơn 0.");
       }
 
       return {
@@ -389,11 +389,18 @@ function validatePayload(
     if (existingProductKeys.has(normalizeKey(product.name))) {
       pushError(errors, "SanPham", rowNumber, "ten_san_pham", product.name, "Sản phẩm đã tồn tại trong hệ thống", "Đổi tên sản phẩm hoặc bỏ dòng này khỏi file.");
     }
-    if (product.defaultPurchasePriceVnd < 0) {
-      pushError(errors, "SanPham", rowNumber, "gia_nhap", String(product.defaultPurchasePriceVnd), "Giá nhập không hợp lệ", "Nhập số VND không âm.");
+    if (product.defaultPurchasePriceVnd <= 0) {
+      pushError(errors, "SanPham", rowNumber, "gia_nhap", String(product.defaultPurchasePriceVnd), "Giá nhập không hợp lệ", "Nhập số VND lớn hơn 0.");
     }
-    if (product.defaultSalePriceVnd < 0) {
-      pushError(errors, "SanPham", rowNumber, "gia_ban", String(product.defaultSalePriceVnd), "Giá bán không hợp lệ", "Nhập số VND không âm.");
+    if (product.defaultSalePriceVnd <= 0) {
+      pushError(errors, "SanPham", rowNumber, "gia_ban", String(product.defaultSalePriceVnd), "Giá bán không hợp lệ", "Nhập số VND lớn hơn 0.");
+    }
+    if (
+      product.defaultPurchasePriceVnd > 0 &&
+      product.defaultSalePriceVnd > 0 &&
+      product.defaultSalePriceVnd < product.defaultPurchasePriceVnd
+    ) {
+      pushError(errors, "SanPham", rowNumber, "gia_ban", String(product.defaultSalePriceVnd), "Giá bán thấp hơn giá nhập", "Nhập giá bán lớn hơn hoặc bằng giá nhập.");
     }
   });
 
