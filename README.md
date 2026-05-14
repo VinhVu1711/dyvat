@@ -133,7 +133,7 @@ Database logic:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/VuNguyenVinh/dyvat.git
+git clone https://github.com/VinhVu1711/dyvat.git
 cd dyvat
 ```
 
