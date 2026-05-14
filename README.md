@@ -20,17 +20,17 @@ The app is built with Kotlin, Jetpack Compose, and Supabase. Business-critical i
 
 ## Core Features
 
-| Area | Capabilities |
-| --- | --- |
-| Authentication | Google Sign-In through Android Credential Manager and Supabase Auth |
-| Products | Create, edit, search, filter, deactivate, restore, and view product details |
-| Product Import | Import `.xlsx` catalogs with sheets for categories, units, suppliers, and products |
-| Purchases | Create multi-line purchase tickets, assign suppliers per line, validate prices, expiry dates, and quantities |
-| Inventory | Track stock by purchase lot, view lot details, hide empty lots, and surface expired or out-of-stock states |
-| Sales | Create multi-line sale tickets, select exact lots, prevent overselling, block expired lots, and restore stock when cancelling |
-| Statistics | Review monthly or yearly revenue, purchase cost, cost of goods sold, profit, and ticket counts |
-| Excel Export | Export detailed purchase and sales report data for the selected reporting period |
-| Catalog Settings | Manage categories, units, and suppliers with soft deactivate/restore workflows |
+| Area             | Capabilities                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Authentication   | Google Sign-In through Android Credential Manager and Supabase Auth                                                           |
+| Products         | Create, edit, search, filter, deactivate, restore, and view product details                                                   |
+| Product Import   | Import `.xlsx` catalogs with sheets for categories, units, suppliers, and products                                            |
+| Purchases        | Create multi-line purchase tickets, assign suppliers per line, validate prices, expiry dates, and quantities                  |
+| Inventory        | Track stock by purchase lot, view lot details, hide empty lots, and surface expired or out-of-stock states                    |
+| Sales            | Create multi-line sale tickets, select exact lots, prevent overselling, block expired lots, and restore stock when cancelling |
+| Statistics       | Review monthly or yearly revenue, purchase cost, cost of goods sold, profit, and ticket counts                                |
+| Excel Export     | Export detailed purchase and sales report data for the selected reporting period                                              |
+| Catalog Settings | Manage categories, units, and suppliers with soft deactivate/restore workflows                                                |
 
 ## Business Rules
 
@@ -51,19 +51,19 @@ The app is built with Kotlin, Jetpack Compose, and Supabase. Business-critical i
 
 ## Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Language | Kotlin 2.0.21 |
-| Android | Compile SDK 36, min SDK 26, target SDK 35 |
-| UI | Jetpack Compose, Material 3, Compose BOM 2024.09.00 |
-| Architecture | MVVM with repository-based data access |
-| Dependency Injection | Hilt |
-| Navigation | Navigation Compose |
-| Async | Kotlin Coroutines and Flow |
-| Backend | Supabase PostgreSQL, Auth, PostgREST, Edge Functions |
-| Networking | Supabase Kotlin SDK, Ktor Android client |
-| Serialization | Kotlinx Serialization |
-| Sign-In | Android Credential Manager and Google ID |
+| Layer                | Technology                                           |
+| -------------------- | ---------------------------------------------------- |
+| Language             | Kotlin 2.0.21                                        |
+| Android              | Compile SDK 36, min SDK 26, target SDK 35            |
+| UI                   | Jetpack Compose, Material 3, Compose BOM 2024.09.00  |
+| Architecture         | MVVM with repository-based data access               |
+| Dependency Injection | Hilt                                                 |
+| Navigation           | Navigation Compose                                   |
+| Async                | Kotlin Coroutines and Flow                           |
+| Backend              | Supabase PostgreSQL, Auth, PostgREST, Edge Functions |
+| Networking           | Supabase Kotlin SDK, Ktor Android client             |
+| Serialization        | Kotlinx Serialization                                |
+| Sign-In              | Android Credential Manager and Google ID             |
 
 ## Project Structure
 
@@ -133,7 +133,7 @@ Database logic:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/VuNguyenVinh/dyvat.git
+git clone https://github.com/VinhVu1711/dyvat.git
 cd dyvat
 ```
 
@@ -191,12 +191,12 @@ Open the project in Android Studio, sync Gradle, then run the app on an emulator
 
 The import file must be an `.xlsx` workbook with these sheets:
 
-| Sheet | Purpose |
-| --- | --- |
-| `LoaiSanPham` | Product categories |
-| `DonViTinh` | Units of measure |
-| `NhaCungCap` | Suppliers |
-| `SanPham` | Products with category, unit, supplier, purchase price, and sale price |
+| Sheet         | Purpose                                                                |
+| ------------- | ---------------------------------------------------------------------- |
+| `LoaiSanPham` | Product categories                                                     |
+| `DonViTinh`   | Units of measure                                                       |
+| `NhaCungCap`  | Suppliers                                                              |
+| `SanPham`     | Products with category, unit, supplier, purchase price, and sale price |
 
 The Edge Function validates the workbook before committing data. Invalid files return row-level errors and no data is inserted.
 
