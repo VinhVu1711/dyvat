@@ -8,9 +8,12 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
-    name: Build and Test
+  verify:
+    name: Verify Android Project
     runs-on: ubuntu-latest
 
     steps:
@@ -27,30 +30,11 @@ jobs:
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "supabase.url=${{ secrets.SUPABASE_URL }}" >> local.properties
-          echo "supabase.anonKey=${{ secrets.SUPABASE_ANON_KEY }}" >> local.properties
-
-      - name: Decode release keystore
-        run: |
-          mkdir -p keystore
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > keystore/dyvat-release.jks
+          echo "supabase.url=https://example.supabase.co" >> local.properties
+          echo "supabase.anonKey=dummy-anon-key" >> local.properties
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
-
-      - name: Build signed release APK
-        run: ./gradlew assembleRelease --no-daemon
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/keystore/dyvat-release.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: dyvat-release-apk
-          path: app/build/outputs/apk/release/*.apk
